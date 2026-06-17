@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environment (reinstall from requirements.txt instead)
+venv/
+.venv/
+
+# IDE / editor
+.vs/
+.vscode/
+.idea/
+
+# Local database (personal data; auto-created on first run)
+lipo_tracker.db
+
+# OS junk
+Thumbs.db
+.DS_Store

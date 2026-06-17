@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voltlog — Quad detail</title>
+  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#11151b">
+  <script>
+    (function () {
+      var t = localStorage.getItem("voltlog-theme");
+      if (t) document.documentElement.dataset.theme = t;
+    })();
+  </script>
+</head>
+<body>
+  <div class="shell">
+    <nav class="topnav">
+      <a href="/">Packs</a>
+      <a href="/quads" class="active">Quads</a>
+      <a href="/flights">Flights</a>
+      <a href="/maintenance">Maintenance</a>
+    </nav>
+
+    <a class="back-link" href="/quads">&larr; All quads</a>
+
+    <div class="pack-header" id="quad-header">
+      <div>
+        <h1 id="quad-name">Loading…</h1>
+        <div class="spec" id="quad-spec"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="icon-btn" id="theme-btn" title="Toggle light / dark theme">🌙</button>
+        <button id="edit-quad-btn">Edit</button>
+        <button id="delete-quad-btn" style="color:var(--check);border-color:color-mix(in srgb,var(--check) 35%,var(--border));">Delete</button>
+        <span class="pill nodata" id="quad-pill">—</span>
+      </div>
+    </div>
+
+    <div class="panel hidden" id="edit-quad-panel">
+      <h2>Edit quad</h2>
+      <form id="edit-quad-form">
+        <div class="field-grid">
+          <div class="field"><label>Name</label><input type="text" id="e-name" required></div>
+          <div class="field"><label>Class</label>
+            <select id="e-class">
+              <option value="">— pick —</option>
+              <option>Tiny whoop</option><option>3"</option><option>4"</option>
+              <option>5"</option><option>7"</option><option>10"</option>
+              <option>Cinewhoop</option><option>Other</option>
+            </select>
+          </div>
+          <div class="field"><label>Status</label>
+            <select id="e-status">
+              <option value="active">Active</option>
+              <option value="down">Down (needs work)</option>
+              <option value="retired">Retired</option>
+            </select>
+          </div>
+          <div class="field"><label>Frame</label><input type="text" id="e-frame"></div>
+          <div class="field"><label>Flight controller / stack</label><input type="text" id="e-fc"></div>
+          <div class="field"><label>VTX</label><input type="text" id="e-vtx"></div>
+          <div class="field"><label>Motors</label><input type="text" id="e-motors"></div>
+          <div class="field"><label>Props</label><input type="text" id="e-prop"></div>
+          <div class="field"><label>AUW (g)</label><input type="number" id="e-weight" min="1"></div>
+        </div>
+        <div class="field" style="margin-bottom:12px;"><label>Notes</label><textarea id="e-notes"></textarea></div>
+        <div class="form-actions">
+          <button type="submit" class="primary">Save changes</button>
+          <button type="button" id="cancel-edit-quad">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="readout-row" id="quad-readout"></div>
+
+    <div class="panel">
+      <h3>Flights on this quad</h3>
+      <table>
+        <thead><tr><th>When</th><th>Pack</th><th>Time</th><th>Location</th><th>Notes</th></tr></thead>
+        <tbody id="quad-flights-body"></tbody>
+      </table>
+      <div class="empty hidden" id="quad-flights-empty">No flights logged on this quad yet.</div>
+    </div>
+
+    <div class="panel">
+      <h3>Maintenance</h3>
+      <form id="quad-maint-form" style="margin-bottom:14px;">
+        <div class="field-grid">
+          <div class="field"><label>Type</label>
+            <select id="qm-type">
+              <option value="">— pick —</option>
+              <option>Crash</option><option>Motor swap</option><option>Prop change</option>
+              <option>VTX</option><option>Repair</option><option>Inspection</option><option>Other</option>
+            </select>
+          </div>
+          <div class="field"><label>Date</label><input type="date" id="qm-date"></div>
+          <div class="field" style="grid-column:1/-1;"><label>Description</label><input type="text" id="qm-desc" placeholder="e.g. replaced rear-left motor"></div>
+        </div>
+        <div class="form-actions"><button type="submit" class="primary">Add job</button></div>
+      </form>
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Status</th><th></th><th></th></tr></thead>
+        <tbody id="quad-maint-body"></tbody>
+      </table>
+      <div class="empty hidden" id="quad-maint-empty">No maintenance jobs yet.</div>
+    </div>
+  </div>
+
+  <script src="/static/common.js?v=1"></script>
+  <script src="/static/quad.js?v=1"></script>
+</body>
+</html>

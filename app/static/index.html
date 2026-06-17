@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voltlog</title>
+  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#11151b">
+  <script>
+    // Apply saved theme before first paint to avoid a flash.
+    (function () {
+      var t = localStorage.getItem("voltlog-theme");
+      if (t) document.documentElement.dataset.theme = t;
+    })();
+  </script>
+</head>
+<body>
+  <div class="shell">
+    <nav class="topnav">
+      <a href="/" class="active">Packs</a>
+      <a href="/quads">Quads</a>
+      <a href="/flights">Flights</a>
+      <a href="/maintenance">Maintenance</a>
+    </nav>
+
+    <header class="top">
+      <div class="brand">
+        <h1>Voltlog</h1>
+        <span class="tagline">LiPo pack cycle &amp; health log</span>
+      </div>
+      <div class="header-actions">
+        <button class="primary" id="add-pack-btn">+ Add pack</button>
+        <button class="icon-btn" id="export-btn" title="Export all data to CSV">⤓ Export</button>
+        <button class="icon-btn" id="import-btn" title="Import data from CSV">⤒ Import</button>
+        <button class="icon-btn" id="template-btn" title="Download a blank import CSV template">⬚ Template</button>
+        <input type="file" id="import-file" accept=".csv" class="hidden">
+        <button class="icon-btn" id="bell-btn" title="Enable storage-hazard alerts">🔔</button>
+        <button class="icon-btn" id="theme-btn" title="Toggle light / dark theme">🌙</button>
+      </div>
+    </header>
+
+    <div class="summary-bar hidden" id="summary-bar"></div>
+
+    <div class="panel hidden" id="add-pack-panel">
+      <h2>Add a pack</h2>
+      <form id="add-pack-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="pk-name">Name</label>
+            <input type="text" id="pk-name" required placeholder="e.g. Tattu 1300 #3">
+          </div>
+          <div class="field">
+            <label for="pk-brand">Grade</label>
+            <select id="pk-brand">
+              <option value="">— unrated —</option>
+              <option value="A">A — Best condition</option>
+              <option value="B">B — Good</option>
+              <option value="C">C — Aging</option>
+              <option value="Retired">Retired</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="pk-cells">Cell count (S)</label>
+            <input type="number" id="pk-cells" min="1" max="12" required value="4">
+          </div>
+          <div class="field">
+            <label for="pk-capacity">Capacity (mAh)</label>
+            <input type="number" id="pk-capacity" min="0" placeholder="e.g. 1300">
+          </div>
+          <div class="field">
+            <label for="pk-chem">Chemistry</label>
+            <select id="pk-chem">
+              <option value="LiPo">LiPo</option>
+              <option value="LiHV">LiHV</option>
+              <option value="Li-ion">Li-ion</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="pk-sticker">Sticker</label>
+            <input type="text" id="pk-sticker" placeholder="e.g. Red dot, #1">
+          </div>
+          <div class="field">
+            <label for="pk-max-cycles">Max cycles</label>
+            <input type="number" id="pk-max-cycles" min="1" placeholder="e.g. 200">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom: 12px;">
+          <label for="pk-notes">Notes</label>
+          <textarea id="pk-notes" placeholder="Optional"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary">Add pack</button>
+          <button type="button" id="cancel-add-pack">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="pack-grid" class="pack-grid"></div>
+    <div id="empty-state" class="empty hidden">
+      No packs yet. Add your first one to start logging cycles.
+    </div>
+
+    <div class="grid-controls">
+      <div class="filter-menu">
+        <button id="filter-toggle" class="filter-toggle" type="button">
+          Filter
+          <span id="filter-badge" class="filter-badge hidden">0</span>
+        </button>
+        <div id="filter-panel" class="filter-panel hidden">
+          <label class="fp-row">
+            <span>Grade</span>
+            <select id="filter-grade">
+              <option value="">All</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="Retired">Retired</option>
+            </select>
+          </label>
+          <label class="fp-row">
+            <span>Chemistry</span>
+            <select id="filter-chem">
+              <option value="">All</option>
+              <option value="LiPo">LiPo</option>
+              <option value="LiHV">LiHV</option>
+              <option value="Li-ion">Li-ion</option>
+            </select>
+          </label>
+          <label class="fp-row">
+            <span>Health</span>
+            <select id="filter-health">
+              <option value="">All</option>
+              <option value="healthy">Healthy</option>
+              <option value="watch">Watch</option>
+              <option value="check">Check</option>
+            </select>
+          </label>
+          <div class="fp-footer">
+            <span id="filter-count"></span>
+            <a id="clear-filters" class="disabled">Clear</a>
+          </div>
+        </div>
+      </div>
+      <div class="sort-menu">
+        <button id="sort-toggle" class="filter-toggle" type="button">Sort</button>
+        <div id="sort-panel" class="filter-panel sort-panel hidden">
+          <label class="fp-row">
+            <span>Sort by</span>
+            <select id="sort-by">
+              <option value="name">Name</option>
+              <option value="last_used">Last used</option>
+              <option value="grade">Grade</option>
+              <option value="health">Health</option>
+            </select>
+          </label>
+          <label class="fp-row">
+            <span>Order</span>
+            <select id="sort-order">
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/static/app.js?v=22"></script>
+</body>
+</html>

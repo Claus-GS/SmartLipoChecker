@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voltlog — Flight log</title>
+  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#11151b">
+  <script>
+    (function () {
+      var t = localStorage.getItem("voltlog-theme");
+      if (t) document.documentElement.dataset.theme = t;
+    })();
+  </script>
+</head>
+<body>
+  <div class="shell">
+    <nav class="topnav">
+      <a href="/">Packs</a>
+      <a href="/quads">Quads</a>
+      <a href="/flights" class="active">Flights</a>
+      <a href="/maintenance">Maintenance</a>
+    </nav>
+
+    <header class="top">
+      <div class="brand">
+        <h1>Flight log</h1>
+        <span class="tagline">Sessions, time, and packs flown</span>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="theme-btn" title="Toggle light / dark theme">🌙</button>
+      </div>
+    </header>
+
+    <div class="readout-row" id="summary-row"></div>
+
+    <div class="panel">
+      <h2>Log a flight</h2>
+      <form id="flight-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="f-quad">Quad</label>
+            <select id="f-quad"></select>
+          </div>
+          <div class="field">
+            <label for="f-pack">Pack (optional)</label>
+            <select id="f-pack"></select>
+          </div>
+          <div class="field">
+            <label for="f-time">Date / time</label>
+            <input type="datetime-local" id="f-time">
+          </div>
+          <div class="field">
+            <label>Flight time</label>
+            <div style="display:flex;gap:6px;">
+              <input type="number" id="f-min" min="0" placeholder="min" style="width:50%;">
+              <input type="number" id="f-sec" min="0" max="59" placeholder="sec" style="width:50%;">
+            </div>
+          </div>
+          <div class="field">
+            <label for="f-location">Location</label>
+            <input type="text" id="f-location" placeholder="e.g. the spot">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom: 12px;">
+          <label for="f-notes">Notes</label>
+          <textarea id="f-notes" placeholder="e.g. clean session, one prop strike"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary" id="flight-submit">Log flight</button>
+          <button type="button" id="flight-cancel" class="hidden">Cancel edit</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h3>Flights</h3>
+      <table id="flights-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Quad</th>
+            <th>Pack</th>
+            <th>Time</th>
+            <th>Location</th>
+            <th>Notes</th>
+            <th></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="flights-body"></tbody>
+      </table>
+      <div class="empty hidden" id="flights-empty">No flights logged yet.</div>
+    </div>
+  </div>
+
+  <script src="/static/common.js?v=1"></script>
+  <script src="/static/flights.js?v=1"></script>
+</body>
+</html>

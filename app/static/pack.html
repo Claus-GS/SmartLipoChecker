@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voltlog — Pack detail</title>
+  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#11151b">
+  <script>
+    // Apply saved theme before first paint to avoid a flash.
+    (function () {
+      var t = localStorage.getItem("voltlog-theme");
+      if (t) document.documentElement.dataset.theme = t;
+    })();
+  </script>
+</head>
+<body>
+  <div class="shell">
+    <nav class="topnav">
+      <a href="/" class="active">Packs</a>
+      <a href="/quads">Quads</a>
+      <a href="/flights">Flights</a>
+      <a href="/maintenance">Maintenance</a>
+    </nav>
+
+    <a class="back-link" href="/">&larr; All packs</a>
+
+    <div class="pack-header" id="pack-header">
+      <div>
+        <h1 id="pack-name">Loading…</h1>
+        <div class="spec" id="pack-spec"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="icon-btn" id="theme-btn" title="Toggle light / dark theme">🌙</button>
+        <button id="edit-pack-btn">Edit</button>
+        <button id="delete-pack-btn" style="color:var(--check);border-color:color-mix(in srgb,var(--check) 35%,var(--border));">Delete</button>
+        <span class="pill nodata" id="pack-pill">No data</span>
+      </div>
+    </div>
+
+    <div class="panel hidden" id="edit-pack-panel">
+      <h2>Edit pack</h2>
+      <form id="edit-pack-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="ep-name">Name</label>
+            <input type="text" id="ep-name" required>
+          </div>
+          <div class="field">
+            <label for="ep-cells">Cell count (S)</label>
+            <input type="number" id="ep-cells" min="1" max="12" required>
+          </div>
+          <div class="field">
+            <label for="ep-capacity">Capacity (mAh)</label>
+            <input type="number" id="ep-capacity" min="0">
+          </div>
+          <div class="field">
+            <label for="ep-chem">Chemistry</label>
+            <select id="ep-chem">
+              <option value="LiPo">LiPo</option>
+              <option value="LiHV">LiHV</option>
+              <option value="Li-ion">Li-ion</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ep-sticker">Sticker</label>
+            <input type="text" id="ep-sticker" placeholder="e.g. Red dot, #1">
+          </div>
+          <div class="field">
+            <label for="ep-max-cycles">Max cycles</label>
+            <input type="number" id="ep-max-cycles" min="1" placeholder="e.g. 200">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:12px;">
+          <label for="ep-notes">Notes</label>
+          <textarea id="ep-notes" placeholder="Optional"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary">Save changes</button>
+          <button type="button" id="cancel-edit-pack">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="readout-row" id="readout-row"></div>
+
+    <div id="ai-summary-wrap"></div>
+
+    <div class="chart-wrap">
+      <div class="chart-toggle" id="chart-toggle">
+        <button class="ct-btn active" type="button" data-type="discharge">Discharge</button>
+        <button class="ct-btn" type="button" data-type="charge">Charge</button>
+        <button class="ct-btn" type="button" data-type="storage">Storage</button>
+        <button class="ct-btn" type="button" data-type="all">All</button>
+      </div>
+      <canvas id="voltage-chart" height="220"></canvas>
+      <div class="empty hidden" id="chart-empty">
+        No per-cell voltage data logged yet — the chart will appear once a
+        cycle includes cell voltages.
+      </div>
+    </div>
+
+    <div class="panel hidden" id="batch-log-panel">
+      <h2>Quick batch log (1S)</h2>
+      <p class="spec" style="margin:-4px 0 12px;">
+        Log how many 1S packs you just charged or put into storage. Each pack is
+        recorded as its own cycle (charged = 4.35 V, storage = 3.85 V).
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+        <div class="field" style="margin:0;max-width:160px;">
+          <label for="batch-count">How many used?</label>
+          <input type="number" id="batch-count" min="1" max="100" value="1">
+        </div>
+        <div class="form-actions" style="margin:0;">
+          <button type="button" class="primary" id="batch-charged-btn">Charged · 4.35 V</button>
+          <button type="button" id="batch-storage-btn">Storage · 3.85 V</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Log a cycle</h2>
+      <form id="cycle-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="cy-type">Cycle type</label>
+            <select id="cy-type">
+              <option value="charge">Charge</option>
+              <option value="discharge">Discharge (after use)</option>
+              <option value="storage">Storage</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cy-voltage">Pack voltage (V)</label>
+            <input type="number" id="cy-voltage" step="0.001" placeholder="e.g. 16.65">
+          </div>
+          <div class="field">
+            <label for="cy-time">Date / time</label>
+            <input type="datetime-local" id="cy-time">
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom: 6px;">
+          <label>Per-cell voltages (V) — optional</label>
+        </div>
+        <div class="cell-inputs" id="cell-voltage-inputs"></div>
+
+        <div class="field" style="margin-bottom: 12px;">
+          <label for="cy-notes">Notes</label>
+          <textarea id="cy-notes" placeholder="e.g. hard 3-min flight, hot ambient temp"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="primary">Log cycle</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel hidden" id="edit-cycle-panel">
+      <h2>Edit cycle</h2>
+      <form id="edit-cycle-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="ec-type">Cycle type</label>
+            <select id="ec-type">
+              <option value="charge">Charge</option>
+              <option value="discharge">Discharge (after use)</option>
+              <option value="storage">Storage</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ec-voltage">Pack voltage (V)</label>
+            <input type="number" id="ec-voltage" step="0.001" placeholder="e.g. 16.65">
+          </div>
+          <div class="field">
+            <label for="ec-time">Date / time</label>
+            <input type="datetime-local" id="ec-time">
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom: 6px;">
+          <label>Per-cell voltages (V) — optional</label>
+        </div>
+        <div class="cell-inputs" id="ec-cell-voltage-inputs"></div>
+
+        <div class="field" style="margin-bottom: 12px;">
+          <label for="ec-notes">Notes</label>
+          <textarea id="ec-notes"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="primary">Save changes</button>
+          <button type="button" id="cancel-edit-cycle">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h3>Cycle history</h3>
+      <table id="history-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Type</th>
+            <th class="mono">Pack V</th>
+            <th class="mono">Cell V</th>
+            <th class="mono">Spread</th>
+            <th>Source</th>
+            <th>Notes</th>
+            <th></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+      <div class="empty hidden" id="history-empty">No cycles logged yet.</div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/static/pack.js?v=13"></script>
+</body>
+</html>
