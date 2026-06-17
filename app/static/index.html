@@ -4,9 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Voltlog</title>
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=14">
   <link rel="manifest" href="/static/manifest.webmanifest">
-  <meta name="theme-color" content="#11151b">
+  <meta name="theme-color" content="#0d1117">
   <script>
     // Apply saved theme before first paint to avoid a flash.
     (function () {
@@ -26,17 +29,32 @@
 
     <header class="top">
       <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><path d="M286 64 L150 280 H246 L226 448 L362 232 H266 Z"/></svg>
         <h1>Voltlog</h1>
         <span class="tagline">LiPo pack cycle &amp; health log</span>
       </div>
       <div class="header-actions">
-        <button class="primary" id="add-pack-btn">+ Add pack</button>
-        <button class="icon-btn" id="export-btn" title="Export all data to CSV">⤓ Export</button>
-        <button class="icon-btn" id="import-btn" title="Import data from CSV">⤒ Import</button>
-        <button class="icon-btn" id="template-btn" title="Download a blank import CSV template">⬚ Template</button>
+        <button class="primary action-btn" id="add-pack-btn">
+          <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Add pack</span>
+        </button>
+        <button class="icon-btn action-btn" id="export-btn" title="Export all data to CSV">
+          <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+          <span>Export</span>
+        </button>
+        <button class="icon-btn action-btn" id="import-btn" title="Import data from CSV">
+          <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>
+          <span>Import</span>
+        </button>
+        <button class="icon-btn action-btn" id="template-btn" title="Download a blank import CSV template">
+          <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>
+          <span>Template</span>
+        </button>
         <input type="file" id="import-file" accept=".csv" class="hidden">
-        <button class="icon-btn" id="bell-btn" title="Enable storage-hazard alerts">🔔</button>
-        <button class="icon-btn" id="theme-btn" title="Toggle light / dark theme">🌙</button>
+        <button class="icon-btn icon-only" id="bell-btn" title="Enable storage-hazard alerts" aria-label="Enable storage-hazard alerts">
+          <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+        </button>
+        <button class="icon-btn icon-only" id="theme-btn" title="Toggle light / dark theme" aria-label="Toggle light / dark theme"></button>
       </div>
     </header>
 
@@ -167,6 +185,6 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <script src="/static/app.js?v=22"></script>
+  <script src="/static/app.js?v=24"></script>
 </body>
 </html>

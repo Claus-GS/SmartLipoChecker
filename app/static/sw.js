@@ -2,7 +2,7 @@
 // HTML pages are network-first (so updates show immediately when online);
 // static assets are cache-first; API responses are never cached.
 
-const CACHE = "voltlog-shell-v3";
+const CACHE = "voltlog-shell-v5";
 const SHELL = [
   "/",
   "/pack",

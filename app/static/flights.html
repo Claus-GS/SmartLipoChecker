@@ -4,9 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Voltlog — Flight log</title>
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=14">
   <link rel="manifest" href="/static/manifest.webmanifest">
-  <meta name="theme-color" content="#11151b">
+  <meta name="theme-color" content="#0d1117">
   <script>
     (function () {
       var t = localStorage.getItem("voltlog-theme");
@@ -25,11 +28,12 @@
 
     <header class="top">
       <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><path d="M286 64 L150 280 H246 L226 448 L362 232 H266 Z"/></svg>
         <h1>Flight log</h1>
         <span class="tagline">Sessions, time, and packs flown</span>
       </div>
       <div class="header-actions">
-        <button class="icon-btn" id="theme-btn" title="Toggle light / dark theme">🌙</button>
+        <button class="icon-btn icon-only" id="theme-btn" title="Toggle light / dark theme" aria-label="Toggle light / dark theme"></button>
       </div>
     </header>
 
@@ -95,7 +99,7 @@
     </div>
   </div>
 
-  <script src="/static/common.js?v=1"></script>
+  <script src="/static/common.js?v=2"></script>
   <script src="/static/flights.js?v=1"></script>
 </body>
 </html>

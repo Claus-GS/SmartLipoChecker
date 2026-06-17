@@ -4,9 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Voltlog — Pack detail</title>
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=14">
   <link rel="manifest" href="/static/manifest.webmanifest">
-  <meta name="theme-color" content="#11151b">
+  <meta name="theme-color" content="#0d1117">
   <script>
     // Apply saved theme before first paint to avoid a flash.
     (function () {
@@ -32,7 +35,7 @@
         <div class="spec" id="pack-spec"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="icon-btn" id="theme-btn" title="Toggle light / dark theme">🌙</button>
+        <button class="icon-btn icon-only" id="theme-btn" title="Toggle light / dark theme" aria-label="Toggle light / dark theme"></button>
         <button id="edit-pack-btn">Edit</button>
         <button id="delete-pack-btn" style="color:var(--check);border-color:color-mix(in srgb,var(--check) 35%,var(--border));">Delete</button>
         <span class="pill nodata" id="pack-pill">No data</span>
@@ -219,6 +222,6 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <script src="/static/pack.js?v=13"></script>
+  <script src="/static/pack.js?v=14"></script>
 </body>
 </html>

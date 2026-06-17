@@ -1,14 +1,18 @@
 // Shared helpers for the secondary pages: theme toggle, service worker, and
 // small formatters. Theme is applied pre-paint by an inline <head> script; this
-// just wires the toggle button and keeps the glyph in sync. Emoji use \u escapes
-// so the file stays pure ASCII (encoding-safe).
+// just wires the toggle button and keeps the icon in sync.
 
 (function () {
   const themeBtn = document.getElementById("theme-btn");
   if (themeBtn) {
+    const icons = {
+      dark: '<svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8z"/></svg>',
+      light: '<svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+    };
     const sync = () => {
-      themeBtn.textContent =
-        document.documentElement.dataset.theme === "light" ? "☀️" : "\u{1F319}";
+      const isLight = document.documentElement.dataset.theme === "light";
+      themeBtn.innerHTML = isLight ? icons.light : icons.dark;
+      themeBtn.setAttribute("aria-label", isLight ? "Using light theme" : "Using dark theme");
     };
     themeBtn.addEventListener("click", () => {
       const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
