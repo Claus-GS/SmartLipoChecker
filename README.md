@@ -3,7 +3,7 @@
 A local web app for FPV pilots that tracks **packs**, **quads**, **flights**, and
 **maintenance** in one place. Log charge/discharge/storage cycles with per-cell voltages
 and get rule-based battery health (cell spread, storage-voltage hazard, retirement,
-last-used) plus an optional AI summary via Claude — then log flights against a quad and a
+last-used) — then log flights against a quad and a
 pack so every battery shows real flight time, every aircraft shows its hours, and open
 maintenance jobs surface on the dashboard.
 
@@ -13,11 +13,7 @@ maintenance jobs surface on the dashboard.
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. (Optional) enable AI health summaries
-#    Windows PowerShell:  $env:ANTHROPIC_API_KEY = "sk-ant-..."
-#    bash:                export ANTHROPIC_API_KEY=sk-ant-...
-
-# 3. Run
+# 2. Run
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -32,11 +28,12 @@ lipo-tracker/
 ├── app/
 │   ├── main.py         # FastAPI app: pack/cycle/stats/export/import routes
 │   ├── database.py     # SQLite connection + versioned migrations (PRAGMA user_version)
-│   ├── health.py       # Rule-based health metrics + optional Claude summary
+│   ├── health.py       # Rule-based health metrics
 │   └── static/         # Frontend (vanilla JS + Chart.js via CDN)
 │       ├── index.html, app.js          # Dashboard: pack grid, fleet/ops stats, CSV, PWA
 │       ├── pack.html, pack.js          # Pack detail: log form, voltage chart, history
 │       ├── quads.html/.js, quad.html/.js     # Aircraft list + detail
+│       ├── builds.html/.js, build.html/.js    # Build planner: parts list + purchase tracking
 │       ├── flights.html/.js            # Flight log + monthly totals
 │       ├── maintenance.html/.js        # Maintenance jobs
 │       ├── common.js                   # Shared theme/SW/format helpers (secondary pages)
@@ -59,7 +56,12 @@ lipo-tracker/
   charged packs left sitting still trip the storage-hazard warning.
 - **Health metrics** — cell-spread status (healthy / watch / check), spread trend,
   storage-voltage hazard (pack left charged too long), retirement warning, last-used,
-  pack age. Optional 2–3 sentence Claude summary when `ANTHROPIC_API_KEY` is set.
+  pack age.
+- **Charge state** — separate from health, each pack shows whether it's **Charged**
+  (ready to fly), in **Storage**, or **Spent**, derived from its last logged cycle. The
+  Packs dashboard summarizes how many are *ready to fly* and the charge chips filter the
+  grid to just the charged ones — so in the field you grab the right packs (a "healthy"
+  pack sitting at storage voltage is not the same as a charged one).
 - **Fleet dashboard** — summary bar (total packs, capacity, cycles in last 30 days,
   needs-attention count) with a health-distribution doughnut; filter + sort.
 - **Per-cell voltage chart** — Chart.js line chart per cycle type.
@@ -71,6 +73,13 @@ lipo-tracker/
   on the Flights tab.
 - **Maintenance** — per-quad jobs (crash, motor/prop swap, repair, inspection) with an
   open/done status; open jobs roll up to the dashboard.
+- **Builds** — plan a quad build as a parts list. Each part has a name, category, price,
+  product link, and image (auto-fetched from the product page via **Fetch image**,
+  uploaded, or pasted). Parts group by category with per-group and total cost, and a
+  **Copy links** button copies the current tab's links for a shopping run. Tick a part's
+  checkbox to mark it **purchased**: it moves to the **Purchased** tab and the build splits
+  into *to buy* vs *bought* with running totals, so a build doubles as a shopping checklist.
+  Each build shows a cover image (an explicit one, or the first part's photo).
 - **PWA** — installable, works offline (cached shell), light/dark theme toggle, and
   storage-hazard notifications while the app is open.
 
@@ -98,6 +107,12 @@ lipo-tracker/
 | GET/PATCH/DELETE | /api/flights/{id} | Get / update / delete a flight |
 | GET/POST | /api/maintenance | List (filter by `quad_id`/`status`) / add a job |
 | PATCH/DELETE | /api/maintenance/{id} | Update (e.g. mark done) / delete a job |
+| GET/POST | /api/builds | List (with cost + purchase summary) / create a build |
+| GET/PATCH/DELETE | /api/builds/{id} | Get (with parts) / update / delete a build |
+| GET/POST | /api/builds/{id}/parts, /api/parts | List a build's parts / add a part |
+| PATCH/DELETE | /api/parts/{id} | Update a part (incl. `purchased`) / delete a part |
+| GET    | /api/link-preview?url= | Scrape a product page for image/title/price |
+| POST   | /api/upload-image | Upload an image (part, build cover, or quad photo) |
 
 ### Validation
 

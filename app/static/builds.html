@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voltlog — Builds</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=26">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Voltlog">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+  <script>
+    (function () {
+      var t = localStorage.getItem("voltlog-theme");
+      if (t) document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <style>
+    /* Build list cards — a cover image above the usual card body. */
+    .build-card { padding: 0; overflow: hidden; }
+    .build-cover {
+      aspect-ratio: 16 / 9;
+      background: var(--surface-2) center/cover no-repeat;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-faint); font-size: 13px;
+    }
+    .build-cover .ph { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .build-cover svg { width: 30px; height: 30px; opacity: 0.6; }
+    .build-card-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .build-card-body .row-bottom { font-family: var(--font-mono); }
+    /* Cover-image picker (shared shape with the build detail form) */
+    .cover-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .cover-row input[type="text"] { flex: 1 1 200px; }
+    .cover-thumb {
+      width: 54px; height: 54px; flex: 0 0 54px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--surface-2) center/cover no-repeat;
+    }
+    .cover-hint { font-size: 12px; color: var(--text-faint); margin: 6px 0 0; }
+    .cover-thumb.drag-over { border-color: var(--info); box-shadow: var(--ring); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="topnav">
+      <a href="/">Home</a>
+      <a href="/packs">Packs</a>
+      <a href="/session">Session</a>
+      <a href="/quads" class="active">Quads</a>
+      <a href="/maintenance">Jobs</a>
+    </nav>
+
+    <header class="top">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><path d="M286 64 L150 280 H246 L226 448 L362 232 H266 Z"/></svg>
+        <h1>Builds</h1>
+        <span class="tagline">Parts lists with links &amp; pictures</span>
+      </div>
+      <div class="header-actions">
+        <button class="primary action-btn" id="add-build-btn">
+          <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Add build</span>
+        </button>
+        <button class="icon-btn icon-only" id="theme-btn" title="Toggle light / dark theme" aria-label="Toggle light / dark theme"></button>
+      </div>
+    </header>
+
+    <div class="panel hidden" id="add-build-panel">
+      <h2>Add a build</h2>
+      <form id="add-build-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="b-name">Name</label>
+            <input type="text" id="b-name" required placeholder="e.g. Apex 5&quot; freestyle">
+          </div>
+          <div class="field">
+            <label for="b-status">Status</label>
+            <select id="b-status">
+              <option value="planned">Planned</option>
+              <option value="building">Building</option>
+              <option value="active">Active</option>
+              <option value="retired">Retired</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom: 12px;">
+          <label for="b-desc">Description</label>
+          <textarea id="b-desc" placeholder="Optional — what this build is for"></textarea>
+        </div>
+        <div class="field" style="margin-bottom: 12px;">
+          <label>Cover image (optional)</label>
+          <div class="cover-row">
+            <button type="button" id="bc-upload-btn">Upload image</button>
+            <input type="file" id="bc-file" accept="image/*" class="hidden">
+            <input type="text" id="bc-image" placeholder="…or paste an image URL">
+            <div id="bc-thumb" class="cover-thumb"></div>
+          </div>
+          <p class="cover-hint">Upload, paste (Ctrl+V), or drag an image here — leave empty to use the first part's picture.</p>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary">Add build</button>
+          <button type="button" id="cancel-add-build">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="build-grid" class="pack-grid"></div>
+    <div id="empty-state" class="empty hidden">
+      No builds yet. Add your first build, then add parts with links.
+    </div>
+  </div>
+
+  <script src="/static/common.js?v=6"></script>
+  <script src="/static/builds.js?v=5"></script>
+</body>
+</html>

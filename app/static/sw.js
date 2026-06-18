@@ -2,16 +2,23 @@
 // HTML pages are network-first (so updates show immediately when online);
 // static assets are cache-first; API responses are never cached.
 
-const CACHE = "voltlog-shell-v5";
+const CACHE = "voltlog-shell-v20";
 const SHELL = [
   "/",
+  "/packs",
   "/pack",
   "/quads",
   "/quad",
   "/flights",
+  "/session",
   "/maintenance",
+  "/builds",
+  "/build",
   "/static/manifest.webmanifest",
   "/static/icon.svg",
+  "/static/apple-touch-icon.png",
+  "/static/icon-192.png",
+  "/static/icon-512.png",
   "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js",
 ];
 

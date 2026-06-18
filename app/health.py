@@ -1,6 +1,5 @@
-"""Rule-based pack health metrics, plus an optional AI narrative summary."""
+"""Rule-based pack health metrics."""
 
-import os
 from datetime import datetime, timezone
 
 SPREAD_WATCH = 0.03
@@ -56,6 +55,8 @@ def compute_metrics(pack, cycles):
         "last_used_iso":      None,
         "pack_age_days":      None,
         "pack_age_label":     None,
+        "charge_state":       "unknown",
+        "needs_values":       False,
     }
 
     # --- cell spread / status ---
@@ -100,6 +101,21 @@ def compute_metrics(pack, cycles):
     chemistry = pack.get("chemistry", "LiPo")
     storage_thresh = STORAGE_VOLTAGE.get(chemistry, 3.85)
     most_recent_type = cycles[-1]["cycle_type"] if cycles else None
+    # Charge state = what the pack was last left in, so the field view can tell a
+    # flight-ready "charged" pack from one sitting at storage voltage.
+    metrics["charge_state"] = {
+        "charge": "charged", "storage": "storage", "discharge": "spent",
+    }.get(most_recent_type, "unknown")
+    # "Needs values" = the pack was just discharged (e.g. by logging a flight)
+    # but its resting voltages haven't been entered yet. Drives the post-session
+    # "fill in the values" prompt in the field logger.
+    last_cycle = cycles[-1] if cycles else None
+    metrics["needs_values"] = bool(
+        last_cycle
+        and last_cycle["cycle_type"] == "discharge"
+        and last_cycle.get("pack_voltage") is None
+        and not last_cycle.get("cell_voltages")
+    )
     # An explicit storage cycle means the pack has been brought to storage —
     # never warn in that case, even if per-cell voltages weren't recorded.
     if most_recent_type != "storage" and latest_cv:
@@ -141,44 +157,3 @@ def compute_metrics(pack, cycles):
             pass
 
     return metrics
-
-
-def get_ai_summary(pack, cycles, metrics):
-    """Return a short natural-language health summary, or None if unavailable."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key or not cycles:
-        return None
-
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        return None
-
-    cycle_lines = []
-    for c in cycles[-10:]:
-        line = f"{c['timestamp']} | {c['cycle_type']} | pack {c.get('pack_voltage')}V"
-        if c.get("cell_voltages"):
-            line += f" | cells {c['cell_voltages']}"
-        cycle_lines.append(line)
-
-    prompt = (
-        f"You are reviewing the cycle history of a {pack['cell_count']}S LiPo pack "
-        f"named '{pack['name']}' rated at {pack.get('capacity_mah', 'unknown')}mAh.\n\n"
-        f"Recent cycle log (most recent {len(cycle_lines)} entries):\n"
-        + "\n".join(cycle_lines)
-        + f"\n\nComputed metrics: {metrics}\n\n"
-        "In 2-3 short sentences, give a plain-language health assessment and one "
-        "practical recommendation. Be specific about cell imbalance or resistance "
-        "trends if relevant. If everything looks normal, say so briefly."
-    )
-
-    try:
-        client = Anthropic(api_key=api_key)
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.content[0].text
-    except Exception as exc:
-        return f"AI summary unavailable: {exc}"

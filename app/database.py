@@ -125,6 +125,112 @@ def _m6_maintenance(conn):
     )
 
 
+def _m7_quad_battery_cell_count(conn):
+    if not _column_exists(conn, "quads", "battery_cell_count"):
+        conn.execute("ALTER TABLE quads ADD COLUMN battery_cell_count INTEGER")
+
+
+def _m8_builds(conn):
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS builds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            status TEXT DEFAULT 'planned',
+            date_added TEXT NOT NULL,
+            notes TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS build_parts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            build_id INTEGER NOT NULL REFERENCES builds (id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            category TEXT,
+            url TEXT,
+            image_url TEXT,
+            price REAL,
+            position INTEGER DEFAULT 0,
+            notes TEXT
+        );
+        """
+    )
+
+
+def _m9_build_cover(conn):
+    if not _column_exists(conn, "builds", "cover_image"):
+        conn.execute("ALTER TABLE builds ADD COLUMN cover_image TEXT")
+
+
+def _m10_quad_image(conn):
+    if not _column_exists(conn, "quads", "image_url"):
+        conn.execute("ALTER TABLE quads ADD COLUMN image_url TEXT")
+
+
+def _m11_flight_coords(conn):
+    # Map-picked flight location: keep the existing free-text `location` as the
+    # human label and store the picked point separately so flights can be plotted.
+    if not _column_exists(conn, "flights", "lat"):
+        conn.execute("ALTER TABLE flights ADD COLUMN lat REAL")
+    if not _column_exists(conn, "flights", "lng"):
+        conn.execute("ALTER TABLE flights ADD COLUMN lng REAL")
+
+
+def _m12_flight_weather(conn):
+    # Weather is stored as a point-in-time snapshot from the session logger.
+    # Values are optional so manual/backfilled flights can stay lightweight.
+    for column, ddl in (
+        ("weather_fetched_at", "TEXT"),
+        ("weather_temp_f", "REAL"),
+        ("weather_wind_mph", "REAL"),
+        ("weather_gust_mph", "REAL"),
+        ("weather_precip_in", "REAL"),
+        ("weather_code", "INTEGER"),
+        ("weather_source", "TEXT"),
+    ):
+        if not _column_exists(conn, "flights", column):
+            conn.execute(f"ALTER TABLE flights ADD COLUMN {column} {ddl}")
+
+
+def _m13_part_purchased(conn):
+    # Per-part purchase tracking so a build splits into "to buy" vs "purchased"
+    # and acts as a shopping checklist. purchased_at records when it was ticked.
+    if not _column_exists(conn, "build_parts", "purchased"):
+        conn.execute("ALTER TABLE build_parts ADD COLUMN purchased INTEGER DEFAULT 0")
+    if not _column_exists(conn, "build_parts", "purchased_at"):
+        conn.execute("ALTER TABLE build_parts ADD COLUMN purchased_at TEXT")
+
+
+def _m14_quad_parts(conn):
+    # Per-quad shopping list: parts the pilot wants to buy for a given quad.
+    # Mirrors build_parts but scoped to a quad and intentionally lighter (no
+    # cached product image) — it's a wishlist / buy-later checklist.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS quad_parts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quad_id INTEGER NOT NULL REFERENCES quads (id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            category TEXT,
+            url TEXT,
+            price REAL,
+            purchased INTEGER DEFAULT 0,
+            purchased_at TEXT,
+            position INTEGER DEFAULT 0,
+            notes TEXT,
+            created_at TEXT NOT NULL
+        );
+        """
+    )
+
+
+def _m15_quad_part_image(conn):
+    # Product image for shopping-list parts (fetched from a link or uploaded),
+    # mirroring build_parts.image_url.
+    if not _column_exists(conn, "quad_parts", "image_url"):
+        conn.execute("ALTER TABLE quad_parts ADD COLUMN image_url TEXT")
+
+
 MIGRATIONS = [
     _m1_initial,
     _m2_add_sticker,
@@ -132,6 +238,15 @@ MIGRATIONS = [
     _m4_quads,
     _m5_flights,
     _m6_maintenance,
+    _m7_quad_battery_cell_count,
+    _m8_builds,
+    _m9_build_cover,
+    _m10_quad_image,
+    _m11_flight_coords,
+    _m12_flight_weather,
+    _m13_part_purchased,
+    _m14_quad_parts,
+    _m15_quad_part_image,
 ]
 SCHEMA_VERSION = len(MIGRATIONS)
 

@@ -8,9 +8,9 @@ const packName = document.getElementById("pack-name");
 const packSpec = document.getElementById("pack-spec");
 const packPill = document.getElementById("pack-pill");
 const readoutRow = document.getElementById("readout-row");
-const aiSummaryWrap = document.getElementById("ai-summary-wrap");
 const cellVoltageInputs = document.getElementById("cell-voltage-inputs");
 const deletePackBtn = document.getElementById("delete-pack-btn");
+const logCycleBtn = document.getElementById("log-cycle-btn");
 const editPackBtn = document.getElementById("edit-pack-btn");
 const editPackPanel = document.getElementById("edit-pack-panel");
 const editPackForm = document.getElementById("edit-pack-form");
@@ -19,7 +19,9 @@ const editCyclePanel = document.getElementById("edit-cycle-panel");
 const editCycleForm = document.getElementById("edit-cycle-form");
 const cancelEditCycle = document.getElementById("cancel-edit-cycle");
 const ecCellVoltageInputs = document.getElementById("ec-cell-voltage-inputs");
+const cyclePanel = document.getElementById("cycle-panel");
 const cycleForm = document.getElementById("cycle-form");
+const cancelCycle = document.getElementById("cancel-cycle");
 const historyBody = document.getElementById("history-body");
 const historyEmpty = document.getElementById("history-empty");
 const voltageChart = document.getElementById("voltage-chart");
@@ -30,6 +32,9 @@ let packData = null;
 let chartInstance = null;
 let lastCycles = [];
 let voltageType = "discharge";
+const editPackSheet = window.VoltlogSheet?.setup(editPackPanel);
+const editCycleSheet = window.VoltlogSheet?.setup(editCyclePanel);
+const cycleSheet = window.VoltlogSheet?.setup(cyclePanel);
 
 function statusLabel(status) {
   switch (status) {
@@ -98,6 +103,13 @@ function buildCellInputs(count, container, step, placeholder) {
   }
 }
 
+function setCycleTimeNow() {
+  const now = new Date();
+  document.getElementById("cy-time").value = new Date(
+    now.getTime() - now.getTimezoneOffset() * 60000
+  ).toISOString().slice(0, 16);
+}
+
 async function loadPack() {
   const res = await fetch(`${API}/packs/${packId}`);
   if (!res.ok) { location.href = "/"; return; }
@@ -105,10 +117,7 @@ async function loadPack() {
 
   renderPackHeader(packData);
 
-  const now = new Date();
-  document.getElementById("cy-time").value = new Date(
-    now.getTime() - now.getTimezoneOffset() * 60000
-  ).toISOString().slice(0, 16);
+  setCycleTimeNow();
 
   buildCellInputs(packData.cell_count, cellVoltageInputs, "0.001", "e.g. 4.16");
 
@@ -119,7 +128,7 @@ async function loadPack() {
 async function loadHealth() {
   const res = await fetch(`${API}/packs/${packId}/health`);
   if (!res.ok) return;
-  const { metrics, ai_summary } = await res.json();
+  const { metrics } = await res.json();
 
   const cls = statusClass(metrics.status);
   packPill.className = `pill ${cls}`;
@@ -178,10 +187,6 @@ async function loadHealth() {
       <div class="value ${t.cls}">${escapeHtml(String(t.value))}</div>
     `;
     readoutRow.appendChild(tile);
-  }
-
-  if (ai_summary) {
-    aiSummaryWrap.innerHTML = `<div class="ai-summary">${escapeHtml(ai_summary)}</div>`;
   }
 }
 
@@ -297,11 +302,11 @@ editPackBtn.addEventListener("click", () => {
   document.getElementById("ep-sticker").value = packData.sticker ?? "";
   document.getElementById("ep-max-cycles").value = packData.max_cycles ?? "";
   document.getElementById("ep-notes").value = packData.notes ?? "";
-  editPackPanel.classList.toggle("hidden");
+  editPackSheet ? editPackSheet.open() : editPackPanel.classList.remove("hidden");
 });
 
 cancelEditPack.addEventListener("click", () => {
-  editPackPanel.classList.add("hidden");
+  editPackSheet ? editPackSheet.close() : editPackPanel.classList.add("hidden");
   editPackForm.reset();
 });
 
@@ -327,7 +332,7 @@ editPackForm.addEventListener("submit", async (e) => {
 
   if (res.ok) {
     packData = await res.json();
-    editPackPanel.classList.add("hidden");
+    editPackSheet ? editPackSheet.close() : editPackPanel.classList.add("hidden");
     editPackForm.reset();
     renderPackHeader(packData);
     buildCellInputs(packData.cell_count, cellVoltageInputs, "0.001", "e.g. 4.16");
@@ -375,12 +380,11 @@ historyBody.addEventListener("click", async (e) => {
     });
   }
 
-  editCyclePanel.classList.remove("hidden");
-  editCyclePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  editCycleSheet ? editCycleSheet.open() : editCyclePanel.classList.remove("hidden");
 });
 
 cancelEditCycle.addEventListener("click", () => {
-  editCyclePanel.classList.add("hidden");
+  editCycleSheet ? editCycleSheet.close() : editCyclePanel.classList.add("hidden");
   editCycleForm.reset();
   editingCycleId = null;
 });
@@ -410,7 +414,7 @@ editCycleForm.addEventListener("submit", async (e) => {
   });
 
   if (res.ok) {
-    editCyclePanel.classList.add("hidden");
+    editCycleSheet ? editCycleSheet.close() : editCyclePanel.classList.add("hidden");
     editCycleForm.reset();
     editingCycleId = null;
     await loadCycles();
@@ -418,6 +422,18 @@ editCycleForm.addEventListener("submit", async (e) => {
   } else {
     alert("Could not save cycle.");
   }
+});
+
+logCycleBtn.addEventListener("click", () => {
+  cycleForm.reset();
+  setCycleTimeNow();
+  cycleSheet ? cycleSheet.open() : cyclePanel.classList.remove("hidden");
+});
+
+cancelCycle.addEventListener("click", () => {
+  cycleForm.reset();
+  setCycleTimeNow();
+  cycleSheet ? cycleSheet.close() : cyclePanel.classList.add("hidden");
 });
 
 cycleForm.addEventListener("submit", async (e) => {
@@ -447,10 +463,8 @@ cycleForm.addEventListener("submit", async (e) => {
 
   if (res.ok) {
     cycleForm.reset();
-    const now = new Date();
-    document.getElementById("cy-time").value = new Date(
-      now.getTime() - now.getTimezoneOffset() * 60000
-    ).toISOString().slice(0, 16);
+    setCycleTimeNow();
+    cycleSheet ? cycleSheet.close() : cyclePanel.classList.add("hidden");
     await loadCycles();
     await loadHealth();
   } else {
@@ -509,46 +523,17 @@ async function logBatch(cycleType) {
 batchChargedBtn.addEventListener("click", () => logBatch("charge"));
 batchStorageBtn.addEventListener("click", () => logBatch("storage"));
 
-// ---------- Theme toggle ----------
-
-const themeBtn = document.getElementById("theme-btn");
-
-const THEME_ICONS = {
-  dark: '<svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8z"/></svg>',
-  light: '<svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
-};
-
-function syncThemeBtn() {
-  const isLight = document.documentElement.dataset.theme === "light";
-  themeBtn.innerHTML = isLight ? THEME_ICONS.light : THEME_ICONS.dark;
-  themeBtn.setAttribute("aria-label", isLight ? "Using light theme" : "Using dark theme");
-}
-
-themeBtn.addEventListener("click", () => {
-  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
-  document.documentElement.dataset.theme = next;
-  localStorage.setItem("voltlog-theme", next);
-  syncThemeBtn();
-});
-syncThemeBtn();
-
-// ---------- Service worker ----------
-
-if ("serviceWorker" in navigator) {
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (refreshing) return;
-    refreshing = true;
-    window.location.reload();
-  });
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  });
-}
-
 async function init() {
   await loadPack();
   await Promise.all([loadHealth(), loadCycles()]);
 }
 
 init();
+
+// Refresh when returning to this page (e.g. after filling in values elsewhere).
+// `pageshow` with persisted=true fires on back/forward-cache restores, which
+// otherwise show a stale snapshot; visibilitychange covers tab re-focus.
+window.addEventListener("pageshow", (e) => { if (e.persisted) init(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") init();
+});

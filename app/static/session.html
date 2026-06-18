@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voltlog - Flight session</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=26">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Voltlog">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+  <script>
+    (function () {
+      var t = localStorage.getItem("voltlog-theme");
+      if (t) document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <style>
+    .session-status-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; padding: 12px 16px; margin-bottom: 16px;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 94%, #000));
+      box-shadow: var(--shadow-card);
+    }
+    .session-status-bar.active {
+      border-color: color-mix(in srgb, var(--healthy) 45%, var(--border));
+      background: linear-gradient(180deg, color-mix(in srgb, var(--healthy) 9%, var(--surface)), var(--surface));
+    }
+    .session-status-bar .ssb-info { font-size: 13.5px; color: var(--text-dim); display: flex; align-items: center; gap: 9px; }
+    .session-status-bar .ssb-dot {
+      width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px;
+      background: var(--healthy); box-shadow: 0 0 9px var(--healthy);
+      animation: ssb-pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes ssb-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+    /* ----- Map location picker ----- */
+    .location-field { grid-column: 1 / -1; }
+    .loc-input-row { display: flex; gap: 8px; align-items: stretch; }
+    .loc-input-row input { flex: 1 1 auto; min-width: 0; }
+    .loc-btn {
+      flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+      white-space: nowrap; cursor: pointer;
+    }
+    .loc-btn .btn-svg { width: 16px; height: 16px; }
+    .loc-map {
+      position: relative; z-index: 0;  /* contain Leaflet's internal stacking */
+      height: 260px; margin-top: 10px;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; background: var(--surface);
+    }
+    .loc-coords { margin-top: 6px; min-height: 1em; }
+    .loc-pin-dot {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--healthy); border: 2px solid #fff;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--healthy) 55%, transparent), 0 1px 4px rgba(0,0,0,.5);
+      cursor: grab;
+    }
+    .leaflet-container { font: inherit; background: var(--surface); }
+    .leaflet-control-attribution { font-size: 10px; }
+    /* Tone down the light OSM tiles against the dark instrument-panel theme. */
+    [data-theme="dark"] .loc-map .leaflet-tile-pane { filter: brightness(0.82) contrast(1.05); }
+
+    /* ----- Weather snapshot ----- */
+    .weather-card {
+      margin-top: 10px;
+      padding: 12px;
+      border: 1px solid color-mix(in srgb, var(--border) 86%, var(--info));
+      border-radius: var(--radius-sm);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--screen) 72%, var(--surface-2)), color-mix(in srgb, var(--screen) 92%, #000));
+      box-shadow: var(--inset-screen);
+    }
+    .weather-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .weather-title { font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+    .weather-status { color: var(--text-faint); font-size: 12px; }
+    .weather-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .weather-metric {
+      min-width: 0; padding: 8px 9px; border-radius: var(--radius-sm);
+      background: color-mix(in srgb, var(--surface-2) 64%, transparent);
+      border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+      font-family: var(--font-mono);
+    }
+    .weather-metric .label { color: var(--text-faint); font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; }
+    .weather-metric .value { margin-top: 3px; color: var(--text); font-size: 15px; overflow-wrap: anywhere; }
+    @media (max-width: 600px) { .weather-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+    /* ----- Charge-state grouping in the pack grid ----- */
+    .session-group-head {
+      grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px;
+      flex-wrap: wrap; margin: 6px 2px 0;
+    }
+    .session-group-head h3 {
+      margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-dim);
+    }
+    .session-group-head h3 .count {
+      font-size: 12px; color: var(--text-faint); font-weight: 600;
+    }
+    .session-group-head .hint { font-size: 12px; color: var(--text-faint); }
+
+    .charge-badge {
+      display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+      border: 1px solid var(--border); color: var(--text-dim);
+    }
+    .charge-badge.charged {
+      color: var(--healthy);
+      border-color: color-mix(in srgb, var(--healthy) 50%, var(--border));
+      background: color-mix(in srgb, var(--healthy) 14%, transparent);
+    }
+    .charge-badge.spent {
+      color: var(--check);
+      border-color: color-mix(in srgb, var(--check) 50%, var(--border));
+      background: color-mix(in srgb, var(--check) 14%, transparent);
+    }
+    .charge-badge.storage {
+      color: var(--info, var(--text-dim));
+      border-color: color-mix(in srgb, var(--info, var(--border)) 45%, var(--border));
+    }
+
+    .session-pack-card.muted { opacity: 0.72; }
+    .session-fill-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      text-decoration: none; width: 100%;
+      border-color: color-mix(in srgb, var(--check) 45%, var(--border));
+      color: var(--check);
+    }
+    .session-fill-btn .btn-svg { width: 16px; height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="topnav">
+      <a href="/">Home</a>
+      <a href="/packs">Packs</a>
+      <a href="/session" class="active">Session</a>
+      <a href="/quads">Quads</a>
+      <a href="/maintenance">Jobs</a>
+    </nav>
+
+    <header class="top">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><path d="M286 64 L150 280 H246 L226 448 L362 232 H266 Z"/></svg>
+        <h1>Flight session</h1>
+        <span class="tagline">Fast pack-by-pack field logging</span>
+      </div>
+      <div class="header-actions">
+        <a class="btn action-btn" href="/flights">
+          <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+          <span>Total flights</span>
+        </a>
+        <button class="icon-btn icon-only" id="theme-btn" title="Toggle light / dark theme" aria-label="Toggle light / dark theme"></button>
+      </div>
+    </header>
+
+    <div class="session-status-bar" id="session-status-bar"></div>
+
+    <div class="panel session-setup">
+      <h2>Session setup</h2>
+      <form id="session-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="s-quad">Quad</label>
+            <select id="s-quad"></select>
+          </div>
+          <div class="field location-field">
+            <label for="s-location">Location</label>
+            <div class="loc-input-row">
+              <input type="text" id="s-location" placeholder="Type a place + Enter, or tap the map" autocomplete="off">
+              <button type="button" id="s-locate" class="btn loc-btn" title="Center on my current location">
+                <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                <span>My location</span>
+              </button>
+            </div>
+            <div id="s-map" class="loc-map"></div>
+            <div class="loc-coords spec" id="s-coords"></div>
+            <div class="weather-card" id="session-weather">
+              <div class="weather-head">
+                <div>
+                  <div class="weather-title">Weather now</div>
+                  <div class="weather-status" id="weather-status">Set a map pin to fetch wind.</div>
+                </div>
+                <button type="button" id="weather-refresh" class="icon-btn">Refresh</button>
+              </div>
+              <div class="weather-grid">
+                <div class="weather-metric"><div class="label">Wind</div><div class="value" id="weather-wind">--</div></div>
+                <div class="weather-metric"><div class="label">Gusts</div><div class="value" id="weather-gust">--</div></div>
+                <div class="weather-metric"><div class="label">Precip</div><div class="value" id="weather-precip">--</div></div>
+                <div class="weather-metric"><div class="label">Temp</div><div class="value" id="weather-temp">--</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="s-duration">Flight time</label>
+            <select id="s-duration">
+              <option value="60">1:00</option>
+              <option value="90">1:30</option>
+              <option value="120">2:00</option>
+              <option value="150">2:30</option>
+              <option value="180">3:00</option>
+              <option value="210" selected>3:30</option>
+              <option value="240">4:00</option>
+              <option value="270">4:30</option>
+              <option value="300">5:00</option>
+              <option value="330">5:30</option>
+              <option value="360">6:00</option>
+              <option value="390">6:30</option>
+              <option value="420">7:00</option>
+              <option value="450">7:30</option>
+              <option value="480">8:00</option>
+              <option value="510">8:30</option>
+              <option value="540">9:00</option>
+              <option value="570">9:30</option>
+              <option value="600">10:00</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="s-note">Session note</label>
+            <input type="text" id="s-note" placeholder="e.g. windy, new props">
+          </div>
+        </div>
+        <div class="session-controls">
+          <label class="check-row">
+            <input type="checkbox" id="s-damage">
+            <span>Maintenance</span>
+          </label>
+        </div>
+        <div class="field damage-note hidden" id="damage-note-wrap">
+          <label for="s-damage-note">Maintenance note</label>
+          <input type="text" id="s-damage-note" placeholder="e.g. replaced props, tightened stack screws">
+        </div>
+      </form>
+    </div>
+
+    <div class="session-toolbar">
+      <div>
+        <h2>Packs</h2>
+        <span id="session-pack-count" class="spec"></span>
+      </div>
+      <label class="check-row compact">
+        <input type="checkbox" id="s-ready-only" checked>
+        <span>Hide retired packs</span>
+      </label>
+    </div>
+
+    <div id="session-pack-grid" class="pack-grid session-pack-grid"></div>
+    <div id="session-empty" class="empty hidden">No packs available for this session.</div>
+
+    <div class="panel hidden" id="fill-values-panel">
+      <h2>Fill in resting voltages</h2>
+      <p class="spec" id="fv-pack-label"></p>
+      <form id="fill-values-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="fv-voltage">Pack voltage (V)</label>
+            <input type="number" id="fv-voltage" step="0.001" placeholder="e.g. 14.80">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom: 6px;">
+          <label>Per-cell voltages (V)</label>
+        </div>
+        <div class="cell-inputs" id="fv-cell-inputs"></div>
+        <div class="field" style="margin-bottom: 12px;">
+          <label for="fv-notes">Notes</label>
+          <textarea id="fv-notes" placeholder="e.g. landed hot, hard 3-min flight"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary">Save values</button>
+          <button type="button" id="cancel-fill-values">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="session-toast hidden" id="session-toast" role="status"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/common.js?v=6"></script>
+  <script src="/static/session.js?v=14"></script>
+</body>
+</html>

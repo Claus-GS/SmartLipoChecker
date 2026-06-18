@@ -44,7 +44,17 @@ def test_ops_tables_created(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", path)
     db.init_db()
     assert {"quads", "flights", "maintenance"} <= _tables(path)
-    assert db.SCHEMA_VERSION >= 6
+    assert "battery_cell_count" in _columns(path, "quads")
+    assert {"lat", "lng", "weather_wind_mph", "weather_gust_mph", "weather_precip_in"} <= set(_columns(path, "flights"))
+    assert db.SCHEMA_VERSION >= 7
+
+
+def test_build_parts_purchase_columns(tmp_path, monkeypatch):
+    path = str(tmp_path / "parts.db")
+    monkeypatch.setattr(db, "DB_PATH", path)
+    db.init_db()
+    assert {"purchased", "purchased_at"} <= set(_columns(path, "build_parts"))
+    assert db.SCHEMA_VERSION >= 13
 
 
 def test_init_is_idempotent(tmp_path, monkeypatch):

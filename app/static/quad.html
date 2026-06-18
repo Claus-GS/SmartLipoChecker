@@ -7,23 +7,120 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=14">
+  <link rel="stylesheet" href="/static/style.css?v=26">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Voltlog">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
   <script>
     (function () {
       var t = localStorage.getItem("voltlog-theme");
       if (t) document.documentElement.dataset.theme = t;
     })();
   </script>
+  <style>
+    #quad-image-banner { width: 100%; max-height: 260px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 16px; display: block; }
+    .img-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .img-row input[type="text"] { flex: 1 1 200px; }
+    .img-thumb { width: 54px; height: 54px; flex: 0 0 54px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2) center/cover no-repeat; }
+    .img-thumb.drag-over { border-color: var(--info); box-shadow: var(--ring); }
+    .img-hint { font-size: 12px; color: var(--text-faint); margin: 6px 0 0; }
+
+    /* ----- Shopping list (parts to buy) — card grid, like Builds ----- */
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .panel-head h3 { margin: 0; }
+
+    .part-group { margin-top: 18px; }
+    .part-group:first-child { margin-top: 4px; }
+    .part-group-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 10px; padding-bottom: 8px; margin-bottom: 4px;
+      border-bottom: 1px solid var(--border-soft, var(--border));
+    }
+    .pg-name { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); }
+    .pg-sub { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); }
+
+    .part-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 13px; margin-top: 12px;
+    }
+    .part-card {
+      position: relative; display: flex; flex-direction: column;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow-card);
+      transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+    }
+    .part-card:hover { border-color: color-mix(in srgb, var(--info) 45%, var(--border)); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .part-thumb {
+      display: block; aspect-ratio: 1 / 1;
+      background: var(--surface-2) center/cover no-repeat;
+      border-bottom: 1px solid var(--border);
+    }
+    .part-thumb .part-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .part-thumb.ph { display: flex; align-items: center; justify-content: center; color: var(--text-faint); }
+    .part-thumb.ph svg { width: 34px; height: 34px; opacity: 0.5; }
+    .part-body { padding: 12px 13px; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+    .part-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .part-name { font-weight: 600; font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
+    .part-cat { align-self: flex-start; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); padding: 2px 7px; border: 1px solid var(--border); border-radius: 999px; }
+    .part-sub { font-size: 11px; color: var(--text-dim); overflow-wrap: anywhere; }
+    .part-price { font-family: var(--font-mono); color: var(--healthy); font-size: 13px; white-space: nowrap; }
+    .part-actions { display: flex; gap: 8px; align-items: center; margin-top: auto; }
+    .buy-link {
+      flex: 1; text-align: center; font-size: 12.5px; font-weight: 600;
+      padding: 7px 10px; border-radius: var(--radius-sm); text-decoration: none;
+      background: color-mix(in srgb, var(--info) 16%, var(--surface));
+      border: 1px solid color-mix(in srgb, var(--info) 40%, var(--border));
+      color: var(--info);
+    }
+    .buy-link.disabled { opacity: 0.4; pointer-events: none; }
+    .part-icon-btn { padding: 6px 10px; font-size: 12px; }
+
+    .part-card.purchased { border-color: color-mix(in srgb, var(--healthy) 50%, var(--border)); }
+    .part-card.purchased .part-thumb { opacity: 0.78; }
+    .purchased-badge {
+      position: absolute; top: 8px; right: 8px; z-index: 1;
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10.5px; font-weight: 700; letter-spacing: .03em;
+      padding: 3px 8px; border-radius: 999px; color: #fff;
+      background: color-mix(in srgb, var(--healthy) 86%, #000);
+      box-shadow: 0 1px 4px rgba(0,0,0,.4);
+    }
+    .purchase-row {
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+      font-size: 12px; color: var(--text-dim); user-select: none;
+      padding: 7px 9px; border-radius: var(--radius-sm); border: 1px dashed var(--border);
+    }
+    .purchase-row:hover { border-color: color-mix(in srgb, var(--healthy) 45%, var(--border)); color: var(--text); }
+    .part-card.purchased .purchase-row { border-style: solid; border-color: color-mix(in srgb, var(--healthy) 40%, var(--border)); color: var(--healthy); }
+    .purchase-row input { width: 16px; height: 16px; accent-color: var(--healthy); cursor: pointer; flex: 0 0 auto; }
+
+    /* Link-preview row in the add/edit form */
+    .lp-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .lp-row .field { flex: 1 1 240px; }
+    .lp-row .lp-btn { flex: 0 0 auto; }
+    #lp-thumb {
+      width: 64px; height: 64px; flex: 0 0 64px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--surface-2) center/cover no-repeat;
+    }
+    #lp-thumb.drag-over { border-color: var(--info); box-shadow: var(--ring); }
+    .lp-hint { font-size: 12px; color: var(--text-faint); margin: 6px 0 0; }
+  </style>
 </head>
 <body>
   <div class="shell">
     <nav class="topnav">
-      <a href="/">Packs</a>
+      <a href="/">Home</a>
+      <a href="/packs">Packs</a>
+      <a href="/session">Session</a>
       <a href="/quads" class="active">Quads</a>
-      <a href="/flights">Flights</a>
-      <a href="/maintenance">Maintenance</a>
+      <a href="/maintenance">Jobs</a>
     </nav>
 
     <a class="back-link" href="/quads">&larr; All quads</a>
@@ -54,6 +151,7 @@
               <option>Cinewhoop</option><option>Other</option>
             </select>
           </div>
+          <div class="field"><label>Battery (S)</label><input type="number" id="e-battery" min="1" max="24"></div>
           <div class="field"><label>Status</label>
             <select id="e-status">
               <option value="active">Active</option>
@@ -69,12 +167,24 @@
           <div class="field"><label>AUW (g)</label><input type="number" id="e-weight" min="1"></div>
         </div>
         <div class="field" style="margin-bottom:12px;"><label>Notes</label><textarea id="e-notes"></textarea></div>
+        <div class="field" style="margin-bottom:12px;">
+          <label>Photo</label>
+          <div class="img-row">
+            <button type="button" id="qe-upload">Upload image</button>
+            <input type="file" id="qe-file" accept="image/*" class="hidden">
+            <input type="text" id="qe-image" placeholder="…or paste an image URL">
+            <div id="qe-thumb" class="img-thumb"></div>
+          </div>
+          <p class="img-hint">Upload, paste (Ctrl+V), or drag a photo here. Clear it to remove.</p>
+        </div>
         <div class="form-actions">
           <button type="submit" class="primary">Save changes</button>
           <button type="button" id="cancel-edit-quad">Cancel</button>
         </div>
       </form>
     </div>
+
+    <img id="quad-image-banner" class="hidden" alt="">
 
     <div class="readout-row" id="quad-readout"></div>
 
@@ -88,30 +198,69 @@
     </div>
 
     <div class="panel">
-      <h3>Maintenance</h3>
-      <form id="quad-maint-form" style="margin-bottom:14px;">
-        <div class="field-grid">
-          <div class="field"><label>Type</label>
-            <select id="qm-type">
-              <option value="">— pick —</option>
-              <option>Crash</option><option>Motor swap</option><option>Prop change</option>
-              <option>VTX</option><option>Repair</option><option>Inspection</option><option>Other</option>
-            </select>
-          </div>
-          <div class="field"><label>Date</label><input type="date" id="qm-date"></div>
-          <div class="field" style="grid-column:1/-1;"><label>Description</label><input type="text" id="qm-desc" placeholder="e.g. replaced rear-left motor"></div>
-        </div>
-        <div class="form-actions"><button type="submit" class="primary">Add job</button></div>
-      </form>
+      <h3>Completed maintenance</h3>
       <table>
-        <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Status</th><th></th><th></th></tr></thead>
+        <thead><tr><th>Date</th><th>Type</th><th>Description</th></tr></thead>
         <tbody id="quad-maint-body"></tbody>
       </table>
-      <div class="empty hidden" id="quad-maint-empty">No maintenance jobs yet.</div>
+      <div class="empty hidden" id="quad-maint-empty">No completed maintenance yet.</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h3>Shopping list</h3>
+          <span class="spec" id="parts-summary"></span>
+        </div>
+        <button id="add-part-btn" class="primary action-btn">
+          <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Add part</span>
+        </button>
+      </div>
+      <div id="parts-list"></div>
+      <div class="empty hidden" id="parts-empty">No parts on the list yet — add things you want to buy for this quad.</div>
     </div>
   </div>
 
-  <script src="/static/common.js?v=2"></script>
-  <script src="/static/quad.js?v=1"></script>
+  <div class="panel hidden" id="part-panel">
+    <h2 id="part-panel-title">Add part</h2>
+    <form id="part-form">
+      <div class="lp-row" style="margin-bottom:10px;">
+        <div class="field">
+          <label for="p-url">Product link</label>
+          <input type="url" id="p-url" placeholder="https://… (paste a product page)">
+        </div>
+        <button type="button" class="lp-btn" id="fetch-btn">Fetch image</button>
+        <button type="button" class="lp-btn" id="upload-btn">Upload</button>
+        <input type="file" id="p-file" accept="image/*" class="hidden">
+        <div id="lp-thumb" title="Image preview"></div>
+      </div>
+      <p class="lp-hint" id="lp-hint">Paste a link and tap <b>Fetch image</b> — it grabs the product picture, name &amp; price. If a shop blocks it: <b>Upload</b>, <b>paste</b> (Ctrl+V), or drag an image onto the box.</p>
+
+      <div class="field-grid">
+        <div class="field"><label for="p-name">Part</label><input type="text" id="p-name" required placeholder="e.g. T-Motor F40 Pro"></div>
+        <div class="field"><label for="p-category">Category</label>
+          <input type="text" id="p-category" list="part-categories" placeholder="e.g. Motors">
+          <datalist id="part-categories">
+            <option>Frame</option><option>Motors</option><option>Props</option>
+            <option>Flight controller</option><option>ESC</option><option>VTX</option>
+            <option>Camera</option><option>Antenna</option><option>Receiver</option>
+            <option>Batteries</option><option>Hardware</option><option>Other</option>
+          </datalist>
+        </div>
+        <div class="field"><label for="p-price">Price</label><input type="number" id="p-price" step="0.01" min="0" placeholder="e.g. 19.99"></div>
+        <div class="field"><label for="p-image">Image URL</label><input type="text" id="p-image" placeholder="auto-filled, or paste your own"></div>
+      </div>
+      <div class="field" style="margin-bottom:10px;"><label for="p-notes">Notes</label><textarea id="p-notes" placeholder="Optional — size, color, why you want it"></textarea></div>
+      <label class="check-row" style="margin-bottom:12px;"><input type="checkbox" id="p-purchased"><span>Already bought</span></label>
+      <div class="form-actions">
+        <button type="submit" class="primary">Save part</button>
+        <button type="button" id="cancel-part">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="/static/common.js?v=6"></script>
+  <script src="/static/quad.js?v=12"></script>
 </body>
 </html>

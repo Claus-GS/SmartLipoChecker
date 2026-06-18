@@ -21,6 +21,33 @@ def test_create_flight_links_names(client, quad_and_pack):
     assert f["duration_sec"] == 222
 
 
+def test_create_flight_stores_weather_snapshot(client, quad_and_pack):
+    qid, pid = quad_and_pack
+    payload = {
+        "quad_id": qid,
+        "pack_id": pid,
+        "duration_sec": 180,
+        "location": "field",
+        "lat": 43.6532,
+        "lng": -79.3832,
+        "weather_fetched_at": "2026-06-17T14:00:00+00:00",
+        "weather_temp_f": 72.4,
+        "weather_wind_mph": 11.2,
+        "weather_gust_mph": 18.8,
+        "weather_precip_in": 0.012,
+        "weather_code": 3,
+        "weather_source": "Open-Meteo",
+    }
+    fid = client.post("/api/flights", json=payload).json()["id"]
+    f = client.get(f"/api/flights/{fid}").json()
+    assert f["lat"] == 43.6532
+    assert f["lng"] == -79.3832
+    assert f["weather_wind_mph"] == 11.2
+    assert f["weather_gust_mph"] == 18.8
+    assert f["weather_precip_in"] == 0.012
+    assert f["weather_source"] == "Open-Meteo"
+
+
 def test_flight_filters(client, quad_and_pack):
     qid, pid = quad_and_pack
     qid2 = client.post("/api/quads", json={"name": "Other"}).json()["id"]
@@ -35,6 +62,8 @@ def test_flight_validation(client, quad_and_pack):
     qid, pid = quad_and_pack
     assert client.post("/api/flights", json={"duration_sec": 0}).status_code == 422
     assert client.post("/api/flights", json={"duration_sec": -5}).status_code == 422
+    assert client.post("/api/flights", json={"duration_sec": 60, "weather_wind_mph": -1}).status_code == 422
+    assert client.post("/api/flights", json={"duration_sec": 60, "weather_precip_in": -0.01}).status_code == 422
     # references that don't exist -> 404
     assert client.post("/api/flights", json={"quad_id": 9999, "duration_sec": 60}).status_code == 404
     assert client.post("/api/flights", json={"pack_id": 9999, "duration_sec": 60}).status_code == 404

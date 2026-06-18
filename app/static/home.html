@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voltlog - Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=26">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Voltlog">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+  <script>
+    (function () {
+      var t = localStorage.getItem("voltlog-theme");
+      if (t) document.documentElement.dataset.theme = t;
+    })();
+  </script>
+</head>
+<body>
+  <div class="shell">
+    <nav class="topnav">
+      <a href="/" class="active">Home</a>
+      <a href="/packs">Packs</a>
+      <a href="/session">Session</a>
+      <a href="/quads">Quads</a>
+      <a href="/maintenance">Jobs</a>
+    </nav>
+
+    <header class="top">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><path d="M286 64 L150 280 H246 L226 448 L362 232 H266 Z"/></svg>
+        <h1>Home</h1>
+        <span class="tagline">Field-ready view</span>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn icon-only" id="theme-btn" title="Toggle light / dark theme" aria-label="Toggle light / dark theme"></button>
+      </div>
+    </header>
+
+    <section class="today-dashboard hidden" id="today-dashboard" aria-label="Today dashboard"></section>
+
+    <div class="home-grid">
+      <section class="panel home-panel">
+        <div class="home-panel-head">
+          <h2>Best packs now</h2>
+          <a href="/packs">All packs</a>
+        </div>
+        <div id="home-pack-list" class="home-list"></div>
+      </section>
+
+      <section class="panel home-panel">
+        <div class="home-panel-head">
+          <h2>Fleet alerts</h2>
+          <a href="/maintenance">Jobs</a>
+        </div>
+        <div id="home-alert-list" class="home-list"></div>
+      </section>
+    </div>
+  </div>
+
+  <script src="/static/common.js?v=6"></script>
+  <script src="/static/home.js?v=3"></script>
+</body>
+</html>

@@ -7,23 +7,40 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=14">
+  <link rel="stylesheet" href="/static/style.css?v=26">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Voltlog">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
   <script>
     (function () {
       var t = localStorage.getItem("voltlog-theme");
       if (t) document.documentElement.dataset.theme = t;
     })();
   </script>
+  <style>
+    .quad-card { padding: 0; overflow: hidden; }
+    .quad-cover { aspect-ratio: 16 / 10; background: var(--surface-2) center/cover no-repeat; border-bottom: 1px solid var(--border); }
+    .quad-card-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .img-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .img-row input[type="text"] { flex: 1 1 200px; }
+    .img-thumb { width: 54px; height: 54px; flex: 0 0 54px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2) center/cover no-repeat; }
+    .img-thumb.drag-over { border-color: var(--info); box-shadow: var(--ring); }
+    .img-hint { font-size: 12px; color: var(--text-faint); margin: 6px 0 0; }
+  </style>
 </head>
 <body>
   <div class="shell">
     <nav class="topnav">
-      <a href="/">Packs</a>
+      <a href="/">Home</a>
+      <a href="/packs">Packs</a>
+      <a href="/session">Session</a>
       <a href="/quads" class="active">Quads</a>
-      <a href="/flights">Flights</a>
-      <a href="/maintenance">Maintenance</a>
+      <a href="/maintenance">Jobs</a>
     </nav>
 
     <header class="top">
@@ -33,6 +50,10 @@
         <span class="tagline">Your aircraft</span>
       </div>
       <div class="header-actions">
+        <a class="icon-btn action-btn" href="/builds">
+          <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 7l3 3-7 7H7v-3z"/><path d="M16 5l3 3M5 19h14"/></svg>
+          <span>Builds</span>
+        </a>
         <button class="primary action-btn" id="add-quad-btn">
           <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           <span>Add quad</span>
@@ -62,6 +83,10 @@
               <option>Cinewhoop</option>
               <option>Other</option>
             </select>
+          </div>
+          <div class="field">
+            <label for="q-battery">Battery (S)</label>
+            <input type="number" id="q-battery" min="1" max="24" placeholder="e.g. 4">
           </div>
           <div class="field">
             <label for="q-status">Status</label>
@@ -100,6 +125,16 @@
           <label for="q-notes">Notes</label>
           <textarea id="q-notes" placeholder="Optional"></textarea>
         </div>
+        <div class="field" style="margin-bottom: 12px;">
+          <label>Photo (optional)</label>
+          <div class="img-row">
+            <button type="button" id="q-image-upload">Upload image</button>
+            <input type="file" id="q-image-file" accept="image/*" class="hidden">
+            <input type="text" id="q-image" placeholder="…or paste an image URL">
+            <div id="q-image-thumb" class="img-thumb"></div>
+          </div>
+          <p class="img-hint">Upload, paste (Ctrl+V), or drag a photo of the aircraft — it shows on the quad card.</p>
+        </div>
         <div class="form-actions">
           <button type="submit" class="primary">Add quad</button>
           <button type="button" id="cancel-add-quad">Cancel</button>
@@ -113,7 +148,7 @@
     </div>
   </div>
 
-  <script src="/static/common.js?v=2"></script>
-  <script src="/static/quads.js?v=1"></script>
+  <script src="/static/common.js?v=6"></script>
+  <script src="/static/quads.js?v=4"></script>
 </body>
 </html>

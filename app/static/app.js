@@ -2,19 +2,23 @@ const API = "/api";
 
 const grid = document.getElementById("pack-grid");
 const emptyState = document.getElementById("empty-state");
+const todayDashboard = document.getElementById("today-dashboard");
 const addPackBtn = document.getElementById("add-pack-btn");
 const addPackPanel = document.getElementById("add-pack-panel");
 const cancelAddPack = document.getElementById("cancel-add-pack");
 const addPackForm = document.getElementById("add-pack-form");
+const addPackSheet = window.VoltlogSheet?.setup(addPackPanel);
 
 let allPacks = [];
+let chargeFilter = "";   // "" | charged | storage | spent | unknown — driven by the charge chips
+const SESSION_KEY = "voltlog-active-session";
 
 addPackBtn.addEventListener("click", () => {
-  addPackPanel.classList.toggle("hidden");
+  addPackSheet ? addPackSheet.open() : addPackPanel.classList.remove("hidden");
 });
 
 cancelAddPack.addEventListener("click", () => {
-  addPackPanel.classList.add("hidden");
+  addPackSheet ? addPackSheet.close() : addPackPanel.classList.add("hidden");
   addPackForm.reset();
 });
 
@@ -44,8 +48,9 @@ addPackForm.addEventListener("submit", async (e) => {
 
   if (res.ok) {
     addPackForm.reset();
-    addPackPanel.classList.add("hidden");
-    loadPacks();
+    addPackSheet ? addPackSheet.close() : addPackPanel.classList.add("hidden");
+    await loadPacks();
+    await Promise.all([loadStats(), loadTodayDashboard()]);
   } else {
     alert("Could not add pack.");
   }
@@ -123,9 +128,18 @@ function renderPacks(packs) {
       : m.retirement_warning === "approaching"
       ? `<span class="warn-badge">Approaching cycle limit</span>`
       : "";
+    const CHARGE_BADGE = { charged: "⚡ Charged", storage: "Storage", spent: "Spent" };
+    const chargeHtml = CHARGE_BADGE[m.charge_state]
+      ? `<span class="charge-badge ${m.charge_state}">${CHARGE_BADGE[m.charge_state]}</span>`
+      : "";
+    // Flagged when a flight discharged the pack but its resting voltages were
+    // never entered — mirrors the "Needs values" prompt on the session page.
+    const needsValuesHtml = m.needs_values
+      ? `<span class="warn-badge">Values not entered yet</span>`
+      : "";
 
-    const badgeRow = (gradeHtml || stickerHtml || storageHtml || retireHtml)
-      ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;">${gradeHtml}${stickerHtml}${storageHtml}${retireHtml}</div>`
+    const badgeRow = (chargeHtml || needsValuesHtml || gradeHtml || stickerHtml || storageHtml || retireHtml)
+      ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;">${chargeHtml}${needsValuesHtml}${gradeHtml}${stickerHtml}${storageHtml}${retireHtml}</div>`
       : "";
 
     const lastUsedText = m.last_used_days !== null && m.last_used_days !== undefined
@@ -133,6 +147,13 @@ function renderPacks(packs) {
       : "Never used";
     const lastUsedStyle = m.last_used_days !== null && m.last_used_days > 30
       ? ' style="color:var(--watch);"'
+      : "";
+
+    const fillBtnHtml = m.needs_values
+      ? `<button type="button" class="action-btn pack-fill-btn" data-fill-pack-id="${pack.id}">
+           <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+           <span>Fill in values</span>
+         </button>`
       : "";
 
     card.innerHTML = `
@@ -152,6 +173,7 @@ function renderPacks(packs) {
         <span>${cycleCount} discharge / ${chargeCount} charge</span>
         <span${lastUsedStyle}>${lastUsedText}</span>
       </div>
+      ${fillBtnHtml}
     `;
     grid.appendChild(card);
   }
@@ -175,6 +197,7 @@ const sortOrder    = document.getElementById("sort-order");
 
 function clearFilters() {
   filterGrade.value = filterChem.value = filterHealth.value = "";
+  chargeFilter = "";
   applyFiltersAndRender();
 }
 
@@ -187,6 +210,7 @@ function applyFiltersAndRender() {
     if (grade  && p.brand          !== grade)  return false;
     if (chem   && p.chemistry      !== chem)   return false;
     if (health && p.metrics.status !== health) return false;
+    if (chargeFilter && p.metrics.charge_state !== chargeFilter) return false;
     return true;
   });
 
@@ -206,7 +230,7 @@ function applyFiltersAndRender() {
   });
 
   // Active-filter feedback: button badge + panel footer
-  const activeCount = [grade, chem, health].filter(Boolean).length;
+  const activeCount = [grade, chem, health, chargeFilter].filter(Boolean).length;
   filterBadge.textContent = activeCount;
   filterBadge.classList.toggle("hidden", activeCount === 0);
   filterToggle.classList.toggle("has-filters", activeCount > 0);
@@ -220,6 +244,8 @@ function applyFiltersAndRender() {
   }
 
   renderPacks(filtered);
+  syncHealthChipButtons();
+  syncChargeChips();
 }
 
 // --- Popover open/close (shared by filter + sort menus) ---
@@ -265,17 +291,468 @@ async function loadPacks() {
   applyFiltersAndRender();
 }
 
+// ---------- Fill in resting voltages (spent packs needing values) ----------
+// Lets you clear out the post-session backlog of spent batteries from the pack
+// list without opening each pack page. Edits the blank discharge cycle a flight
+// left behind (same flow as the session tab).
+const fillPanel = document.getElementById("fill-values-panel");
+const fillForm = document.getElementById("fill-values-form");
+const fillPackLabel = document.getElementById("fv-pack-label");
+const fillVoltageEl = document.getElementById("fv-voltage");
+const fillCellInputs = document.getElementById("fv-cell-inputs");
+const fillNotesEl = document.getElementById("fv-notes");
+const cancelFillBtn = document.getElementById("cancel-fill-values");
+const fillSheet = window.VoltlogSheet?.setup(fillPanel);
+const packToast = document.getElementById("pack-toast");
+let fillCycleId = null;
+let packToastTimer = null;
+
+function showPackToast(text) {
+  if (!packToast) return;
+  packToast.textContent = text;
+  packToast.classList.remove("hidden");
+  clearTimeout(packToastTimer);
+  packToastTimer = setTimeout(() => packToast.classList.add("hidden"), 2600);
+}
+
+function buildFillCellInputs(count) {
+  fillCellInputs.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const field = document.createElement("div");
+    field.className = "field";
+    field.innerHTML = `<label>C${i + 1}</label>`
+      + `<input type="number" step="0.001" placeholder="e.g. 3.85" data-cell="${i}">`;
+    fillCellInputs.appendChild(field);
+  }
+}
+
+async function openFillValues(packId) {
+  const pack = allPacks.find((p) => p.id === packId);
+  if (!pack) return;
+  let cycles;
+  try {
+    cycles = await fetch(`${API}/packs/${packId}/cycles`).then((r) => r.json());
+  } catch (_) {
+    showPackToast("Couldn't load that pack's cycles.");
+    return;
+  }
+  const blank = [...cycles].reverse().find((c) =>
+    c.cycle_type === "discharge"
+    && (c.pack_voltage === null || c.pack_voltage === undefined)
+    && (!c.cell_voltages || c.cell_voltages.length === 0));
+  if (!blank) {
+    showPackToast("Nothing to fill in for that pack.");
+    await loadPacks();
+    return;
+  }
+
+  fillCycleId = blank.id;
+  const specBits = [`${pack.cell_count}S`];
+  if (pack.capacity_mah) specBits.push(`${pack.capacity_mah}mAh`);
+  specBits.push(pack.chemistry);
+  fillPackLabel.textContent = `${pack.name} · ${specBits.join(" · ")}`;
+  fillVoltageEl.value = "";
+  fillNotesEl.value = "";
+  buildFillCellInputs(pack.cell_count);
+  fillSheet ? fillSheet.open() : fillPanel.classList.remove("hidden");
+}
+
+grid.addEventListener("click", (e) => {
+  const fillBtn = e.target.closest(".pack-fill-btn");
+  if (!fillBtn) return;
+  // The card is a link — keep the click from navigating to the pack page.
+  e.preventDefault();
+  e.stopPropagation();
+  openFillValues(parseInt(fillBtn.dataset.fillPackId, 10));
+});
+
+fillForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!fillCycleId) return;
+  const cvVals = [...fillCellInputs.querySelectorAll("input")]
+    .map((i) => (i.value ? parseFloat(i.value) : null))
+    .filter((v) => v !== null);
+  const packV = fillVoltageEl.value ? parseFloat(fillVoltageEl.value) : null;
+  if (packV === null && cvVals.length === 0) {
+    alert("Enter the pack voltage or at least one cell voltage.");
+    return;
+  }
+
+  const body = { pack_voltage: packV, cell_voltages: cvVals.length ? cvVals : null };
+  if (fillNotesEl.value.trim()) body.notes = fillNotesEl.value.trim();
+
+  try {
+    const res = await fetch(`${API}/cycles/${fillCycleId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error("fill");
+    fillSheet ? fillSheet.close() : fillPanel.classList.add("hidden");
+    fillForm.reset();
+    fillCycleId = null;
+    showPackToast("Values saved");
+    await loadPacks();
+    await Promise.all([loadStats(), loadTodayDashboard()]);
+  } catch (_) {
+    alert("Could not save those values.");
+  }
+});
+
+cancelFillBtn.addEventListener("click", () => {
+  fillSheet ? fillSheet.close() : fillPanel.classList.add("hidden");
+  fillForm.reset();
+  fillCycleId = null;
+});
+
+// ---------- Today dashboard ----------
+
+function loadActiveSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    if (!session || !session.startedAt) return null;
+    if (!Array.isArray(session.flights)) session.flights = [];
+    return session;
+  } catch (_) {
+    return null;
+  }
+}
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function isToday(timestamp) {
+  if (!timestamp) return false;
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return false;
+  const start = startOfToday();
+  const end = new Date(start);
+  end.setDate(start.getDate() + 1);
+  return d >= start && d < end;
+}
+
+function formatClock(timestamp) {
+  if (!timestamp) return "";
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function formatTodayDate() {
+  return new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function durationBrief(seconds) {
+  const total = Math.max(0, Number(seconds) || 0);
+  if (window.fmtDuration) return window.fmtDuration(total);
+  const mins = Math.round(total / 60);
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function compactCount(n, singular, plural = `${singular}s`) {
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
+function hasWeatherValue(v) {
+  return v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+}
+
+function normalizeWeather(item) {
+  if (!item) return null;
+  const w = item.weather || {};
+  const wind = w.wind_mph ?? item.weather_wind_mph;
+  const gust = w.gust_mph ?? item.weather_gust_mph;
+  const temp = w.temp_f ?? item.weather_temp_f;
+  const precip = w.precip_in ?? item.weather_precip_in;
+  const hasAny = [wind, gust, temp, precip].some(hasWeatherValue);
+  if (!hasAny) return null;
+  return {
+    wind: hasWeatherValue(wind) ? Number(wind) : null,
+    gust: hasWeatherValue(gust) ? Number(gust) : null,
+    temp: hasWeatherValue(temp) ? Number(temp) : null,
+    precip: hasWeatherValue(precip) ? Number(precip) : null,
+    source: w.source || item.weather_source || "Open-Meteo",
+  };
+}
+
+function weatherMetrics(todayFlights, sessionFlights) {
+  const sessionItems = [...sessionFlights].reverse();
+  const source = [...todayFlights, ...sessionItems].find((item) => normalizeWeather(item));
+  const weather = normalizeWeather(source);
+  if (!weather) {
+    return {
+      wind: {
+        value: "No wind",
+        detail: todayFlights.length ? "Set a session pin next time" : "Add weather from Session",
+      },
+      temp: {
+        value: "--",
+        detail: "No temperature saved",
+      },
+      precip: {
+        value: "--",
+        detail: "No precipitation saved",
+      },
+      source: "",
+    };
+  }
+
+  return {
+    wind: {
+      value: weather.wind == null ? "Wind saved" : `${Math.round(weather.wind)} mph`,
+      detail: weather.gust == null ? weather.source : `Gust ${Math.round(weather.gust)} mph`,
+    },
+    temp: {
+      value: weather.temp == null ? "--" : `${Math.round(weather.temp)} F`,
+      detail: weather.temp == null ? "No temperature saved" : weather.source,
+    },
+    precip: {
+      value: weather.precip == null ? "--" : `${weather.precip.toFixed(weather.precip >= 0.1 ? 2 : 3)} in`,
+      detail: weather.precip && weather.precip > 0 ? "Precipitation logged" : "No rain logged",
+    },
+    source: weather.source,
+  };
+}
+
+function todayMetric(label, value, detail, tone = "", extraClass = "") {
+  const toneClass = tone ? ` ${tone}` : "";
+  return `
+    <div class="today-metric readout${extraClass}">
+      <span class="label">${escapeHtml(label)}</span>
+      <span class="value${toneClass}">${escapeHtml(value)}</span>
+      <span class="today-detail">${escapeHtml(detail)}</span>
+    </div>
+  `;
+}
+
+function todayMetricLink(label, value, detail, href, tone = "") {
+  const toneClass = tone ? ` ${tone}` : "";
+  return `
+    <a class="today-metric readout clickable" href="${href}">
+      <span class="label">${escapeHtml(label)}</span>
+      <span class="value${toneClass}">${escapeHtml(value)}</span>
+      <span class="today-detail">${escapeHtml(detail)}</span>
+    </a>
+  `;
+}
+
+function latestFlightLine(flight) {
+  if (!flight) return "No flights logged today yet.";
+  const when = formatClock(flight.timestamp);
+  const quad = flight.quad_name || "Unknown quad";
+  const pack = flight.pack_name || "no pack";
+  return `Latest ${when ? `${when} / ` : ""}${quad} / ${pack}`;
+}
+
+async function loadTodayDashboard() {
+  if (!todayDashboard) return;
+  const session = loadActiveSession();
+  const sessionFlights = session?.flights || [];
+
+  try {
+    const flightsRes = await fetch(`${API}/flights?limit=250`);
+    const flights = flightsRes.ok ? await flightsRes.json() : [];
+    const todayFlights = flights.filter((flight) => isToday(flight.timestamp));
+    const totalSec = todayFlights.reduce((sum, flight) => sum + (Number(flight.duration_sec) || 0), 0);
+    const packsUsed = new Set(todayFlights.map((flight) => flight.pack_id).filter(Boolean)).size;
+    const quadsUsed = new Set(todayFlights.map((flight) => flight.quad_id).filter(Boolean)).size;
+    const sessionSec = sessionFlights.reduce((sum, flight) => sum + (Number(flight.duration_sec) || 0), 0);
+    const weather = weatherMetrics(todayFlights, sessionFlights);
+    const latest = todayFlights[0] || null;
+    const sessionCopy = session
+      ? `Started ${formatClock(session.startedAt)} / ${compactCount(sessionFlights.length, "flight")} / ${durationBrief(sessionSec)} session airtime`
+      : `${formatTodayDate()} / no active session`;
+    const flags = [];
+    if (weather.source) flags.push(`Weather from ${weather.source}`);
+    else flags.push("Set a session pin for weather");
+    if (!todayFlights.length && !session) flags.push("No flights logged today");
+
+    todayDashboard.classList.remove("hidden");
+    todayDashboard.innerHTML = `
+      <div class="today-head">
+        <div>
+          <div class="today-kicker">${session ? '<span class="today-dot"></span>Session active' : "Today"}</div>
+          <h2>${session ? "Current flight session" : "Today dashboard"}</h2>
+          <p>${escapeHtml(sessionCopy)}</p>
+        </div>
+        <div class="today-actions">
+          <a class="icon-btn primary" href="/session">${session ? "Open session" : "Start session"}</a>
+          <a class="icon-btn" href="/flights">Flight log</a>
+        </div>
+      </div>
+      <div class="today-grid">
+        ${todayMetricLink("Flights today", String(todayFlights.length), latestFlightLine(latest), "/flights")}
+        ${todayMetric("Airtime", durationBrief(totalSec), session ? `${durationBrief(sessionSec)} in active session` : "Logged flight time")}
+        ${todayMetric("Packs used", String(packsUsed), `${compactCount(quadsUsed, "quad")} flown`)}
+        ${todayMetricLink("Wind", weather.wind.value, weather.wind.detail, "/session")}
+        ${todayMetricLink("Temp", weather.temp.value, weather.temp.detail, "/session")}
+        ${todayMetricLink("Precip", weather.precip.value, weather.precip.detail, "/session")}
+      </div>
+      <div class="today-flags" aria-label="Today flags">
+        ${flags.map((flag) => `<span>${escapeHtml(flag)}</span>`).join("")}
+      </div>
+    `;
+  } catch (_) {
+    todayDashboard.classList.remove("hidden");
+    todayDashboard.innerHTML = `
+      <div class="today-head">
+        <div>
+          <div class="today-kicker">Today</div>
+          <h2>Today dashboard</h2>
+          <p>Could not load today data right now.</p>
+        </div>
+        <div class="today-actions">
+          <a class="icon-btn primary" href="/session">Open session</a>
+        </div>
+      </div>
+    `;
+  }
+}
+
 // ---------- Fleet summary ----------
 
 const summaryBar = document.getElementById("summary-bar");
-let donutChart = null;
 
-const HEALTH_COLORS = {
-  healthy: "#54c7a2",
-  watch: "#e0a64a",
-  check: "#e0635a",
-  "no data": "#586271",
+const HEALTH_META = {
+  healthy: { label: "Healthy", hint: "Cells balanced", tone: "healthy" },
+  watch: { label: "Watch", hint: "Monitor soon", tone: "watch" },
+  check: { label: "Check soon", hint: "Needs attention", tone: "check" },
+  "no data": { label: "No data", hint: "Needs first reading", tone: "nodata" },
 };
+
+// Charge state is a separate axis from health: a pack can be perfectly healthy
+// but sitting at storage voltage (not ready to fly). This is the field view.
+const CHARGE_META = {
+  charged: { label: "Charged", hint: "Ready to fly", tone: "healthy" },
+  storage: { label: "Storage", hint: "Charge before flying", tone: "info" },
+  spent: { label: "Spent", hint: "Flown — recharge", tone: "watch" },
+  unknown: { label: "No data", hint: "Log a charge or storage", tone: "nodata" },
+};
+
+function syncHealthChipButtons() {
+  summaryBar?.querySelectorAll("[data-health-filter]").forEach((btn) => {
+    btn.classList.toggle("active", filterHealth.value === btn.dataset.healthFilter);
+  });
+}
+
+function syncChargeChips() {
+  summaryBar?.querySelectorAll("[data-charge-filter]").forEach((btn) => {
+    btn.classList.toggle("active", chargeFilter === btn.dataset.chargeFilter);
+  });
+}
+
+function pct(count, total) {
+  return total > 0 ? Math.round((count / total) * 100) : 0;
+}
+
+function renderHealthPanel(s) {
+  const order = ["healthy", "watch", "check", "no data"];
+  const health = s.health || {};
+  const total = s.total_packs || order.reduce((sum, key) => sum + (health[key] || 0), 0);
+  const ready = health.healthy || 0;
+  const attention = (health.watch || 0) + (health.check || 0);
+  const noData = health["no data"] || 0;
+  const healthAttention = attention;
+  const headline = `${ready} healthy / ${total} total`;
+  const subline = attention > 0
+    ? `${attention} pack${attention === 1 ? "" : "s"} need a look`
+    : noData > 0
+    ? `${noData} pack${noData === 1 ? "" : "s"} need first data`
+    : "Fleet is fully logged";
+  const scoreTone = healthAttention > 0 ? "watch" : "healthy";
+
+  const cells = order
+    .flatMap((key) => {
+      const meta = HEALTH_META[key];
+      const count = health[key] || 0;
+      return Array.from({ length: count }, () => `<span class="health-cell ${meta.tone}" title="${meta.label}"></span>`);
+    })
+    .join("");
+
+  const chips = order.map((key) => {
+    const meta = HEALTH_META[key];
+    const count = health[key] || 0;
+    const active = filterHealth.value === key ? " active" : "";
+    return `
+      <button type="button" class="health-chip ${meta.tone}${active}" data-health-filter="${key}">
+        <span class="health-chip-count">${count}</span>
+        <span class="health-chip-copy">
+          <strong>${meta.label}</strong>
+          <em>${pct(count, total)}% - ${meta.hint}</em>
+        </span>
+      </button>
+    `;
+  }).join("");
+
+  // ----- Charge state (field readiness) — a separate axis from health -----
+  const charge = s.charge || {};
+  const chargeOrder = ["charged", "storage", "spent", "unknown"];
+  const chargedCount = charge.charged || 0;
+  const chargeCells = chargeOrder
+    .flatMap((key) => {
+      const meta = CHARGE_META[key];
+      const count = charge[key] || 0;
+      return Array.from({ length: count }, () => `<span class="health-cell ${meta.tone}" title="${meta.label}"></span>`);
+    })
+    .join("");
+  const chargeChips = chargeOrder
+    .filter((key) => (charge[key] || 0) > 0)
+    .map((key) => {
+      const meta = CHARGE_META[key];
+      const count = charge[key] || 0;
+      const active = chargeFilter === key ? " active" : "";
+      return `
+        <button type="button" class="health-chip ${meta.tone}${active}" data-charge-filter="${key}">
+          <span class="health-chip-count">${count}</span>
+          <span class="health-chip-copy">
+            <strong>${meta.label}</strong>
+            <em>${meta.hint}</em>
+          </span>
+        </button>
+      `;
+    }).join("");
+
+  return `
+    <section class="summary-health" aria-label="Pack health distribution">
+      <div class="summary-health-head">
+        <div>
+          <div class="label">Pack health</div>
+          <div class="summary-health-title">${headline}</div>
+          <div class="summary-health-subtitle">${subline}</div>
+        </div>
+        <div class="summary-health-score ${scoreTone}">
+          <span>${healthAttention}</span>
+          <small>attention</small>
+        </div>
+      </div>
+      <div class="health-cells" aria-hidden="true">${cells}</div>
+      <div class="health-grid">${chips}</div>
+      <div class="charge-state">
+        <div class="charge-state-head">
+          <div class="label">Charge state</div>
+          <div class="charge-state-title"><span class="charged-num">${chargedCount}</span> ready to fly</div>
+        </div>
+        <div class="health-battery" aria-hidden="true">
+          <div class="health-battery-body">${chargeCells}</div>
+          <div class="health-battery-cap"></div>
+        </div>
+        <div class="health-grid">${chargeChips}</div>
+      </div>
+    </section>
+  `;
+}
 
 async function loadStats() {
   const res = await fetch(`${API}/stats`);
@@ -288,77 +765,28 @@ async function loadStats() {
   }
   summaryBar.classList.remove("hidden");
 
-  const attnCls = s.needs_attention > 0 ? "watch" : "healthy";
-  const capacityAh = (s.total_capacity_mah / 1000).toFixed(1);
+  // The Pack-health panel is the only dashboard summary now — the old stat
+  // tiles (packs/capacity/cycles/quads/flights/jobs) were removed as redundant.
+  summaryBar.innerHTML = renderHealthPanel(s);
 
-  summaryBar.innerHTML = `
-    <div class="readout">
-      <div class="label">Total packs</div>
-      <div class="value">${s.total_packs}</div>
-    </div>
-    <div class="readout">
-      <div class="label">Capacity</div>
-      <div class="value">${capacityAh} Ah</div>
-    </div>
-    <div class="readout">
-      <div class="label">Cycles (30d)</div>
-      <div class="value">${s.cycles_30d}</div>
-    </div>
-    <div class="readout clickable" id="attn-tile" title="Show packs needing attention">
-      <div class="label">Needs attention</div>
-      <div class="value ${attnCls}">${s.needs_attention}</div>
-    </div>
-    <div class="readout">
-      <div class="label">Quads</div>
-      <div class="value">${s.quad_count ?? 0}</div>
-    </div>
-    <div class="readout">
-      <div class="label">Flights (30d)</div>
-      <div class="value">${s.flights_30d ?? 0}</div>
-    </div>
-    <div class="readout">
-      <div class="label">Open jobs</div>
-      <div class="value ${(s.open_maintenance ?? 0) > 0 ? "watch" : ""}">${s.open_maintenance ?? 0}</div>
-    </div>
-    <div class="summary-donut">
-      <canvas id="health-donut" width="120" height="120"></canvas>
-      <div class="donut-legend" id="donut-legend"></div>
-    </div>
-  `;
-
-  // Clicking the attention tile jumps to the grid (filtering by "check" status).
-  document.getElementById("attn-tile").addEventListener("click", () => {
-    filterHealth.value = filterHealth.value === "check" ? "" : "check";
-    applyFiltersAndRender();
-    grid.scrollIntoView({ behavior: "smooth", block: "start" });
+  summaryBar.querySelectorAll("[data-health-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.healthFilter;
+      filterHealth.value = filterHealth.value === next ? "" : next;
+      applyFiltersAndRender();
+      grid.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   });
-
-  const order = ["healthy", "watch", "check", "no data"];
-  const present = order.filter((k) => (s.health[k] || 0) > 0);
-  const legend = document.getElementById("donut-legend");
-  legend.innerHTML = present
-    .map((k) => `<span><span class="dot" style="background:${HEALTH_COLORS[k]}"></span>${k} ${s.health[k]}</span>`)
-    .join("");
-
-  const ctx = document.getElementById("health-donut");
-  if (donutChart) donutChart.destroy();
-  donutChart = new Chart(ctx, {
-    type: "doughnut",
-    data: {
-      labels: present,
-      datasets: [{
-        data: present.map((k) => s.health[k]),
-        backgroundColor: present.map((k) => HEALTH_COLORS[k]),
-        borderWidth: 0,
-      }],
-    },
-    options: {
-      animation: false,
-      responsive: false,
-      cutout: "70%",
-      plugins: { legend: { display: false }, tooltip: { enabled: true } },
-    },
+  summaryBar.querySelectorAll("[data-charge-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.chargeFilter;
+      chargeFilter = chargeFilter === next ? "" : next;
+      applyFiltersAndRender();
+      grid.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   });
+  syncHealthChipButtons();
+  syncChargeChips();
 }
 
 // ---------- CSV export / import ----------
@@ -400,35 +828,12 @@ importFile.addEventListener("change", async () => {
     alert(`Imported: ${r.packs_created} new pack(s), ${r.cycles_added} cycle(s)` +
       (r.skipped ? `, ${r.skipped} row(s) skipped.` : "."));
     await loadPacks();
-    await loadStats();
+    await Promise.all([loadStats(), loadTodayDashboard()]);
   } else {
     const err = await res.json().catch(() => ({}));
     alert(`Import failed: ${err.detail || res.statusText}`);
   }
 });
-
-// ---------- Theme toggle ----------
-
-const themeBtn = document.getElementById("theme-btn");
-
-const THEME_ICONS = {
-  dark: '<svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8z"/></svg>',
-  light: '<svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
-};
-
-function syncThemeBtn() {
-  const isLight = document.documentElement.dataset.theme === "light";
-  themeBtn.innerHTML = isLight ? THEME_ICONS.light : THEME_ICONS.dark;
-  themeBtn.setAttribute("aria-label", isLight ? "Using light theme" : "Using dark theme");
-}
-
-themeBtn.addEventListener("click", () => {
-  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
-  document.documentElement.dataset.theme = next;
-  localStorage.setItem("voltlog-theme", next);
-  syncThemeBtn();
-});
-syncThemeBtn();
 
 // ---------- Storage-hazard notifications ----------
 // Browser push while the app is closed needs a push server (VAPID); that's out
@@ -471,23 +876,9 @@ document.getElementById("bell-btn").addEventListener("click", async () => {
   }
 });
 
-// ---------- Service worker ----------
-
-if ("serviceWorker" in navigator) {
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (refreshing) return;
-    refreshing = true;
-    window.location.reload();
-  });
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  });
-}
-
 async function init() {
   await loadPacks();
-  await loadStats();
+  await Promise.all([loadStats(), loadTodayDashboard()]);
   notifyHazards();
 }
 

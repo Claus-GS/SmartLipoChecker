@@ -1,11 +1,15 @@
 const API = "/api";
 
 const form = document.getElementById("maint-form");
+const addMaintBtn = document.getElementById("add-maint-btn");
+const addMaintPanel = document.getElementById("add-maint-panel");
+const cancelAddMaint = document.getElementById("cancel-add-maint");
 const quadSel = document.getElementById("m-quad");
 const filterQuad = document.getElementById("filter-quad");
 const filterStatus = document.getElementById("filter-status");
 const body = document.getElementById("maint-body");
 const emptyEl = document.getElementById("maint-empty");
+const addMaintSheet = window.VoltlogSheet?.setup(addMaintPanel);
 
 function todayInput() {
   const now = new Date();
@@ -20,6 +24,18 @@ async function loadQuads() {
     : `<option value="">— add a quad first —</option>`;
   filterQuad.innerHTML = `<option value="">All quads</option>` + opts;
 }
+
+addMaintBtn.addEventListener("click", () => {
+  document.getElementById("m-date").value = todayInput();
+  addMaintSheet ? addMaintSheet.open() : addMaintPanel.classList.remove("hidden");
+});
+
+cancelAddMaint.addEventListener("click", () => {
+  form.reset();
+  document.getElementById("m-date").value = todayInput();
+  document.getElementById("m-status").value = "open";
+  addMaintSheet ? addMaintSheet.close() : addMaintPanel.classList.add("hidden");
+});
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -40,6 +56,8 @@ form.addEventListener("submit", async (e) => {
   if (res.ok) {
     form.reset();
     document.getElementById("m-date").value = todayInput();
+    document.getElementById("m-status").value = "open";
+    addMaintSheet ? addMaintSheet.close() : addMaintPanel.classList.add("hidden");
     load();
   } else {
     alert("Could not add job.");
@@ -108,6 +126,7 @@ body.addEventListener("click", async (e) => {
 async function init() {
   await loadQuads();
   document.getElementById("m-date").value = todayInput();
+  document.getElementById("m-status").value = "open";
   await load();
 }
 

@@ -1,0 +1,16 @@
+# Normalize all text files to LF in the repository so checkouts are identical
+# across machines regardless of each clone's core.autocrlf setting.
+* text=auto eol=lf
+
+# Binary assets — never normalize or diff as text.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.db   binary
+
+# Text assets that must stay LF even though they're served as binary-ish.
+*.svg            text eol=lf
+*.webmanifest    text eol=lf

@@ -82,6 +82,22 @@ def test_no_storage_warning_after_storage_cycle():
     assert m["storage_warning"] is False
 
 
+def test_charge_state_from_last_cycle():
+    assert health.compute_metrics(_pack(), [])["charge_state"] == "unknown"
+
+    charged = health.compute_metrics(_pack(), [
+        _cycle("storage", days_ago=5), _cycle("charge", days_ago=0)])
+    assert charged["charge_state"] == "charged"
+
+    storage = health.compute_metrics(_pack(), [
+        _cycle("charge", days_ago=5), _cycle("storage", days_ago=0)])
+    assert storage["charge_state"] == "storage"
+
+    spent = health.compute_metrics(_pack(), [
+        _cycle("charge", days_ago=2), _cycle("discharge", days_ago=0)])
+    assert spent["charge_state"] == "spent"
+
+
 def test_retirement_warnings():
     cycles = [_cycle("discharge", [3.80, 3.81, 3.80, 3.81], days_ago=i) for i in range(10)]
     exceeded = health.compute_metrics(_pack(max_cycles=5), cycles)

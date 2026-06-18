@@ -15,6 +15,9 @@ venv/
 # Local database (personal data; auto-created on first run)
 lipo_tracker.db
 
+# Cached / uploaded product images for builds
+app/static/uploads/
+
 # OS junk
 Thumbs.db
 .DS_Store

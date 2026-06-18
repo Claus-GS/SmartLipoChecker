@@ -7,9 +7,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=14">
+  <link rel="stylesheet" href="/static/style.css?v=26">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Voltlog">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
   <script>
     (function () {
       var t = localStorage.getItem("voltlog-theme");
@@ -20,10 +26,11 @@
 <body>
   <div class="shell">
     <nav class="topnav">
-      <a href="/">Packs</a>
+      <a href="/">Home</a>
+      <a href="/packs">Packs</a>
+      <a href="/session">Session</a>
       <a href="/quads">Quads</a>
-      <a href="/flights">Flights</a>
-      <a href="/maintenance" class="active">Maintenance</a>
+      <a href="/maintenance" class="active">Jobs</a>
     </nav>
 
     <header class="top">
@@ -33,11 +40,15 @@
         <span class="tagline">Repairs, swaps, and inspections</span>
       </div>
       <div class="header-actions">
+        <button class="primary action-btn" id="add-maint-btn">
+          <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Add job</span>
+        </button>
         <button class="icon-btn icon-only" id="theme-btn" title="Toggle light / dark theme" aria-label="Toggle light / dark theme"></button>
       </div>
     </header>
 
-    <div class="panel">
+    <div class="panel hidden" id="add-maint-panel">
       <h2>Add a job</h2>
       <form id="maint-form">
         <div class="field-grid">
@@ -76,6 +87,7 @@
         </div>
         <div class="form-actions">
           <button type="submit" class="primary">Add job</button>
+          <button type="button" id="cancel-add-maint">Cancel</button>
         </div>
       </form>
     </div>
@@ -110,7 +122,7 @@
     </div>
   </div>
 
-  <script src="/static/common.js?v=2"></script>
-  <script src="/static/maintenance.js?v=1"></script>
+  <script src="/static/common.js?v=6"></script>
+  <script src="/static/maintenance.js?v=4"></script>
 </body>
 </html>

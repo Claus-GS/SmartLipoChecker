@@ -2,12 +2,15 @@ const API = "/api";
 
 const summaryRow = document.getElementById("summary-row");
 const form = document.getElementById("flight-form");
+const addFlightBtn = document.getElementById("add-flight-btn");
+const formPanel = document.getElementById("flight-form-panel");
 const quadSel = document.getElementById("f-quad");
 const packSel = document.getElementById("f-pack");
 const submitBtn = document.getElementById("flight-submit");
 const cancelBtn = document.getElementById("flight-cancel");
 const body = document.getElementById("flights-body");
 const emptyEl = document.getElementById("flights-empty");
+const flightSheet = window.VoltlogSheet?.setup(formPanel);
 
 let editingId = null;
 
@@ -36,6 +39,20 @@ function inputsToDuration() {
   const min = parseInt(document.getElementById("f-min").value || "0", 10);
   const sec = parseInt(document.getElementById("f-sec").value || "0", 10);
   return min * 60 + sec;
+}
+
+function fmtFlightWeather(f) {
+  if (f.weather_wind_mph == null && f.weather_gust_mph == null && f.weather_precip_in == null) {
+    return '<span class="tag">--</span>';
+  }
+  const parts = [];
+  if (f.weather_wind_mph != null) parts.push(`Wind ${Math.round(Number(f.weather_wind_mph))} mph`);
+  if (f.weather_gust_mph != null) parts.push(`gust ${Math.round(Number(f.weather_gust_mph))}`);
+  if (f.weather_precip_in != null && Number(f.weather_precip_in) > 0) {
+    const p = Number(f.weather_precip_in);
+    parts.push(`precip ${p >= 0.1 ? p.toFixed(2) : p.toFixed(3)} in`);
+  }
+  return escapeHtml(parts.join(" / "));
 }
 
 function renderSummary(flights) {
@@ -73,6 +90,7 @@ function renderTable(flights) {
       <td>${f.pack_name ? escapeHtml(f.pack_name) : '<span class="tag">—</span>'}</td>
       <td class="mono">${fmtDuration(f.duration_sec)}</td>
       <td>${escapeHtml(f.location || "")}</td>
+      <td>${fmtFlightWeather(f)}</td>
       <td>${escapeHtml(f.notes || "")}</td>
       <td><button class="edit-flight" data-id="${f.id}" style="padding:4px 10px;font-size:12px;">Edit</button></td>
       <td><button class="del-flight" data-id="${f.id}" style="padding:4px 10px;font-size:12px;color:var(--check);border-color:color-mix(in srgb,var(--check) 35%,var(--border));">Delete</button></td>
@@ -95,6 +113,19 @@ function resetForm() {
   cancelBtn.classList.add("hidden");
 }
 
+function openFlightSheet() {
+  flightSheet ? flightSheet.open() : formPanel.classList.remove("hidden");
+}
+
+function closeFlightSheet() {
+  flightSheet ? flightSheet.close() : formPanel.classList.add("hidden");
+}
+
+addFlightBtn.addEventListener("click", () => {
+  resetForm();
+  openFlightSheet();
+});
+
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const dur = inputsToDuration();
@@ -116,13 +147,17 @@ form.addEventListener("submit", async (e) => {
   });
   if (res.ok) {
     resetForm();
+    closeFlightSheet();
     load();
   } else {
     alert("Could not save flight.");
   }
 });
 
-cancelBtn.addEventListener("click", resetForm);
+cancelBtn.addEventListener("click", () => {
+  resetForm();
+  closeFlightSheet();
+});
 
 body.addEventListener("click", async (e) => {
   const del = e.target.closest(".del-flight");
@@ -146,7 +181,7 @@ body.addEventListener("click", async (e) => {
   document.getElementById("f-notes").value = f.notes || "";
   submitBtn.textContent = "Save changes";
   cancelBtn.classList.remove("hidden");
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  openFlightSheet();
 });
 
 async function init() {
